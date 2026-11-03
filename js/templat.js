@@ -34,7 +34,7 @@ function tplProps() {
     P["Nimetus" + sfx] = multi ? gs.map(g => g.name).join(" / ") : "";
     P["Esipind materjal" + sfx] = v(g => g.faceMat); P["Kile" + sfx] = v(g => g.faceFilm); P["Värv" + sfx] = v(g => g.faceColor);
     P[`Külg ${n}`] = v(g => sideSpec(g).text); P[`Külg profiil ${n}`] = v(gp); P[`Külg värv ${n}`] = v(g => g.sideColor); P[`Külg kruvid ${n}`] = v(g => g.screws); P[`Külg kruvid kogus ${n}`] = v(g => screwQty(g));
-    P[`Põhi ${n}`] = v(g => g.backMat); P[`Põhi värv ${n}`] = v(g => g.backColor); P[`Põhi nähtav ${n}`] = v(g => g.backVisible);
+    P[`Põhi ${n}`] = v(g => backMat(g)); P[`Põhi värv ${n}`] = v(g => g.backColor); P[`Põhi nähtav ${n}`] = v(g => g.backVisible);
     P[`LED moodulid ${n}`] = v(g => g.modules); P[`LED valgus temp ${n}`] = v(g => g.lightTemp); P[`LED dimmerdatav ${n}`] = v(g => g.dimmable); P[`LED toiteplokk ${n}`] = v(g => g.psu); P[`LED trafo karp ${n}`] = v(g => g.trafo);
   });
   P["Raam materjal 1"] = [frameProfileName(), o.frameMat].filter(Boolean).join(" "); P["Raam värv 1"] = o.frameColor; P["Raam konksud 1"] = o.hooks;

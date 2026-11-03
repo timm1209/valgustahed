@@ -40,7 +40,7 @@ function fillGroups() {
   document.querySelectorAll(".pname").forEach(e => { e.textContent = S.groups.length > 1 ? "· " + (S.groups[S.gCur].name || "") : ""; });
   const idx = S.letters.map((L, i) => (L.group || 0) === S.gCur ? i + 1 : null).filter(Boolean);
   $("g_info").textContent = S.letters.length ? (idx.length ? `Selles osas ${idx.length} kuju: ${idx.length > 20 ? idx.slice(0, 20).join(", ") + " …" : idx.join(", ")}` : "Selles osas pole veel ühtegi kuju.") : "";
-  paintChips(); fillScrewQty();
+  paintChips(); fillScrewQty(); fillBackMat();
 }
 /* letter depth of a part: "0,7x60" -> thickness 0,7 and depth 60; missing parts fall back to the profile preset / 3D depth */
 function sideSpec(g) {
@@ -56,6 +56,21 @@ const SCREWS_PER_M = 4;
 function contourLen(gi) { let s = 0; S.letters.forEach(L => { if ((L.group || 0) === gi) for (const lp of L.loops) s += Core.perimOf(lp); }); return s; }
 function screwAuto(gi) { const m = contourLen(gi) / 1000; return m > 0 ? Math.ceil(m * SCREWS_PER_M) : 0; }
 function screwQty(g) { const gi = S.groups.indexOf(g); const own = String(g.screwQty || "").trim(); if (own) return own; const n = screwAuto(gi < 0 ? 0 : gi); return n ? n + " tk" : ""; }
+/* back material from the profile and the side sheet: P3 -> 8mm XT WN770; P6 with 0,7 side -> 1mm AL, with 1,2 side -> 1,5mm AL */
+function backAuto(g) {
+  const t = (g && g.profType) || cfg.profType || "liist";
+  if (t === "p3") return "8mm XT WN770";
+  const th = parseFloat(String(sideSpec(g).th || "").replace(",", "."));
+  if (Math.abs(th - 0.7) < 0.01) return "1mm AL";
+  if (Math.abs(th - 1.2) < 0.01) return "1,5mm AL";
+  return "";
+}
+function backMat(g) { return String((g && g.backMat) || "").trim() || backAuto(g); }
+function fillBackMat() {
+  const g = S.groups[S.gCur]; if (!g || !$("g_backMat")) return; const own = String(g.backMat || "").trim(), a = backAuto(g);
+  if (document.activeElement !== $("g_backMat")) $("g_backMat").value = own || a;
+  $("g_backAuto").hidden = !!own || !a;
+}
 function fillScrewQty() {
   const g = S.groups[S.gCur]; if (!g || !$("g_screwQty")) return; const own = String(g.screwQty || "").trim();
   if (document.activeElement !== $("g_screwQty")) $("g_screwQty").value = own || (screwAuto(S.gCur) ? screwAuto(S.gCur) + " tk" : "");
@@ -70,7 +85,7 @@ function orderLines() {
     const pre = S.groups.length > 1 ? g.name + " – " : "";
     const face = j([g.faceMat, g.faceColor, g.faceFilm && "kile " + g.faceFilm]); if (face) L.push(pre + "Esipind: " + face);
     L.push(pre + `Külg: ${j(["sügavus " + sideSpec(g).text + " mm", g.sideColor, (g.screws || screwQty(g)) && ["kruvid", g.screws, screwQty(g)].filter(Boolean).join(" ")])}`);
-    const back = j([g.backMat, g.backColor]); if (back) L.push(pre + "Tagapind: " + back);
+    const back = j([backMat(g), g.backColor]); if (back) L.push(pre + "Tagapind: " + back);
   }
   { const fr = j([frameProfileName(), o.frameMat, o.frameColor]); if (fr) L.push("Raam: " + fr); }
   return L;
@@ -87,6 +102,9 @@ for (const k of GROUP_KEYS) $("g_" + k).addEventListener(k === "profType" ? "cha
 $("g_name").addEventListener("input", e => { S.groups[S.gCur].name = e.target.value; document.querySelectorAll(".pname").forEach(x => { x.textContent = S.groups.length > 1 ? "· " + e.target.value : ""; }); const o = $("g_sel").options[S.gCur]; if (o) o.textContent = e.target.value || "Osa " + (S.gCur + 1); });
 $("g_screwQty").addEventListener("input", e => { S.groups[S.gCur].screwQty = e.target.value.trim(); fillScrewQty(); });
 $("g_screwQty").addEventListener("blur", () => fillScrewQty());
+$("g_backMat").addEventListener("input", () => fillBackMat()); $("g_backMat").addEventListener("blur", () => fillBackMat());
+for (const id of ["g_profType", "g_sideMat"]) $(id).addEventListener(id === "g_profType" ? "change" : "input", () => fillBackMat());
+for (const id of ["s_profType", "s_preset"]) if ($(id)) $(id).addEventListener("change", () => setTimeout(fillBackMat, 0));
 $("g_sel").addEventListener("change", e => { S.gCur = +e.target.value; fillGroups(); draw(); });
 $("g_add").addEventListener("click", () => { S.groups.push(emptyGroup("Osa " + (S.groups.length + 1))); S.gCur = S.groups.length - 1; fillGroups(); $("g_name").focus(); $("g_name").select(); setPick(true); });
 $("g_del").addEventListener("click", () => { if (S.groups.length < 2) return; const k = S.gCur; S.groups.splice(k, 1); for (const L of S.letters) { const g = L.group || 0; L.group = g === k ? 0 : g > k ? g - 1 : g; } S.gCur = 0; fillGroups(); if (S.letters.length) { computeProfile(); recompute(); } });

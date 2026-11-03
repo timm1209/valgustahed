@@ -1,0 +1,4 @@
+/* Valgustähed — core.js
+   Arvutusosa avalik liides. Funktsioonid ise on failides js/core/*.js (laaditakse enne seda faili). */
+const Core = { simplifyClosed, unionLoops, sweepLoops, fitLoopBezier, loopToBezier, EXPORT_LAYER_NAMES, diffLoops, snapPost, edgeBelow, notchLoops, clean, fitSegments, exportLoop, holeDims, dotDims, fmtMM, mountHoles, framePosts, dotPosts, dotSeg, dotHoles, postSegs, snapBars, barEnds, barJoints, frameJoints, postSpan, postCover, barExtent, writeSplineDXF, offsetLoops, profileSet, roundInner, roundOuter, perimOf: perim, parseDXF, buildLoops, makeLetters, skeleton, placeLetter, mergeLeds, samples, gapFill, drainHoles, frameBars, letterOnFrame, report, wireOrder, writeDXF, zipStore, inLetter, bdist, samplePOC, sampleWide, crossings, area };
+if (typeof module !== "undefined") module.exports = Core;

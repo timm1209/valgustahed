@@ -95,6 +95,7 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 .tplStat{font-size:12.5px;line-height:1.45;overflow-wrap:anywhere}
 .tplStat b{font-weight:600}
 .tplStat.warn{color:var(--bad)}
+.autoTag{font-size:11px;color:var(--muted);margin-left:6px;white-space:nowrap}.autoTag[hidden]{display:none}
 details.tplMap summary{cursor:pointer;font-size:12.5px;color:var(--muted)}
 table.tplmap{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px;table-layout:fixed}
 table.tplmap td{padding:2px 4px;border-bottom:1px solid var(--line2);vertical-align:top;overflow-wrap:anywhere}
@@ -212,7 +213,7 @@ table.types input{padding:4px 5px}
     <div class="brand"><i></i>Valgustähed</div>
     <div class="file" id="fileInfo">Näidis</div>
     <div class="sp"></div>
-    <div class="ver" id="appVer" title="Rakenduse versioon">v2.22 · 03.11.2026</div>
+    <div class="ver" id="appVer" title="Rakenduse versioon">v2.23 · 03.11.2026</div>
   </header>
 
   <main class="stage" id="stage">
@@ -317,6 +318,7 @@ table.types input{padding:4px 5px}
       <div class="orow"><label for="g_sideMat" title="Külje paksus x tähe sügavus, nt 0,7x60">Tähe sügavus</label><input type="text" id="g_sideMat" autocomplete="off" placeholder="nt 0,7x60"></div>
       <div class="orow"><label for="g_sideColor">Värv</label><span class="sw3"><i class="chip" id="c_sideColor"></i><input type="text" id="g_sideColor" list="dl_ral" autocomplete="off" placeholder="nt RAL 9005"></span></div>
       <div class="orow"><label for="g_screws">Kruvid</label><input type="text" id="g_screws" autocomplete="off" placeholder="nt 2,2x9,5"></div>
+      <div class="orow"><label for="g_screwQty" title="Täidetakse automaatselt: 4 kruvi kontuuri (välis- ja sisekontuurid) meetri kohta, ümardatud üles. Võid ise muuta; tühjenda väli, et minna tagasi automaatseks.">Kruvide kogus</label><span class="sw3"><input type="text" id="g_screwQty" inputmode="numeric" autocomplete="off"><small class="autoTag" id="g_screwAuto">auto</small></span></div>
     </section>
 
     <section class="sec closed" id="secBack">

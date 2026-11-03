@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="et">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{margin:0}</style>
+</head>
+<body>
+<title>Valgustähed</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<script src="lib/delaunator.min.js"></script>
+<script src="lib/clipper.js"></script>
+<style>
+/* Layout: drafting table. Canvas fills the left, a dense settings rail on the right, a status strip at the bottom. Palette: graphite on cool drafting paper, LED red as the one accent. */
+:root{
+  --paper:#eef0ee; --panel:#fbfcfb; --ink:#1c2126; --muted:#5f6b74; --line:#d5dad6; --line2:#e5e8e5;
+  --led:#d3202b; --ledInk:#fff; --soor:#e39a2d; --hole:#0f8c9c; --skel:#3466cc; --frame:#8a949c; --wire:#2c9a4a;
+  --fill:#f4ebdd; --warn:#b5650a; --warnBg:#fdf1df; --ok:#22783f; --okBg:#e6f3ea; --bad:#b4232c; --badBg:#fbe6e6;
+  --canvas:#ffffff; --grid:#eceeed; --base:#6a48c8; --side:#b23372; --groove:#0b7a5a; --mount:#2b4bd6;
+  --f-display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#15191c; --panel:#1c2226; --ink:#e6eaec; --muted:#97a3ab; --line:#313a40; --line2:#262e33;
+  --led:#ff4a52; --ledInk:#fff; --soor:#f0aa40; --hole:#2cc0d2; --skel:#6f9bff; --frame:#7d8a93; --wire:#4cc46c;
+  --fill:#3a3227; --warn:#f0a94a; --warnBg:#3a2a12; --ok:#5fcf86; --okBg:#183022; --bad:#ff7077; --badBg:#3a1a1c;
+  --canvas:#101416; --grid:#1b2125; --base:#a68cff; --side:#ff6fae; --groove:#3fd6a6; --mount:#8ea6ff; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#15191c; --panel:#1c2226; --ink:#e6eaec; --muted:#97a3ab; --line:#313a40; --line2:#262e33;
+  --led:#ff4a52; --ledInk:#fff; --soor:#f0aa40; --hole:#2cc0d2; --skel:#6f9bff; --frame:#7d8a93; --wire:#4cc46c;
+  --fill:#3a3227; --warn:#f0a94a; --warnBg:#3a2a12; --ok:#5fcf86; --okBg:#183022; --bad:#ff7077; --badBg:#3a1a1c;
+  --canvas:#101416; --grid:#1b2125; --base:#a68cff; --side:#ff6fae; --groove:#3fd6a6; --mount:#8ea6ff; color-scheme:dark}
+html,body{height:100%}
+[hidden]{display:none!important}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:14px;overflow:hidden}
+.app{height:100%;display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:1fr 340px;grid-template-areas:"top top" "stage rail" "foot foot"}
+.top{grid-area:top;display:flex;align-items:center;gap:14px;padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{font-family:var(--f-display);font-weight:700;font-size:20px;letter-spacing:.02em;display:flex;align-items:center;gap:8px}
+.brand i{width:10px;height:10px;border-radius:50%;background:var(--led);box-shadow:0 0 0 3px color-mix(in srgb,var(--led) 25%,transparent)}
+.top .ver{color:var(--muted);font:12px var(--f-mono, monospace);white-space:nowrap;margin-right:4px}
+.top .file{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.top .sp{flex:1}
+.stage{grid-area:stage;position:relative;min-width:0;min-height:0;background:var(--canvas)}
+#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+.ovl{position:absolute;top:12px;right:12px;display:flex;gap:8px;align-items:flex-start;z-index:5;pointer-events:none}
+.ovl>*{pointer-events:auto}
+.sumbox{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px;display:grid;gap:5px;width:300px}
+.sumbox b{font-family:var(--f-display);font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;cursor:pointer;user-select:none}
+.sumbox.min{width:auto}.sumbox.min .sum{display:none}
+.layers{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;display:grid;gap:3px;min-width:132px}
+.layers b{font-family:var(--f-display);font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;cursor:pointer;user-select:none}
+.layers.min label{display:none}
+.layers.min{min-width:0}
+.layers label{display:flex;justify-content:space-between;gap:12px;align-items:center;cursor:pointer}
+.layers label span{display:flex;align-items:center;gap:6px}
+.sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+.v3d{position:absolute;inset:0}
+.v3d canvas{display:block;width:100%;height:100%;outline:none}
+.modeSw{position:absolute;top:12px;left:12px;display:flex;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:3px;z-index:5}
+.modeSw button{font:inherit;font-family:var(--f-display);font-weight:600;letter-spacing:.06em;font-size:14px;border:0;border-radius:5px;padding:5px 12px;background:transparent;color:var(--ink);cursor:pointer}
+.modeSw button.on{background:var(--ink);color:var(--panel)}
+.v3dPanel{position:absolute;left:12px;top:56px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px;display:grid;gap:7px;font-size:13px;width:210px;z-index:5}
+.v3dPanel .row{grid-template-columns:1fr 78px}
+.v3dPanel .chk{display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer}
+.v3dMsg{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-family:var(--f-display);font-size:18px;pointer-events:none}
+.tools{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px}
+.tools button{width:38px;height:34px;border:0;border-radius:6px;background:transparent;color:var(--ink);cursor:pointer;display:grid;place-items:center}
+.tools button:hover{background:var(--line2)}
+.tools button.on{background:var(--ink);color:var(--panel)}
+.tools svg{width:18px;height:18px}
+.drop{position:fixed;inset:max(10px,env(safe-area-inset-top,0px)) max(10px,env(safe-area-inset-right,0px)) max(10px,env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px));z-index:60;text-align:center;padding:16px;border:2px dashed var(--led);border-radius:10px;display:grid;place-items:center;font-family:var(--f-display);font-size:24px;color:var(--led);background:color-mix(in srgb,var(--canvas) 85%,transparent);pointer-events:none}
+.rail{grid-area:rail;border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;min-height:0}
+.sec{border-bottom:1px solid var(--line);padding:12px 16px;display:grid;gap:10px}
+.sec>h2{margin:0;font-family:var(--f-display);font-size:15px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none}
+.sec>h2 .chev{transition:transform .15s;color:var(--muted)}
+.sec.closed>h2 .chev{transform:rotate(-90deg)}
+.sec.closed>*:not(h2){display:none}
+.gear{padding:6px 8px;display:flex;align-items:center}.btn.gear.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.profset{display:grid;gap:10px;border:1px solid var(--line);border-radius:6px;padding:10px;background:var(--paper)}
+.profset[hidden]{display:none}
+.psub{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-top:1px solid var(--line);padding-top:8px}
+.list.sum{font-family:var(--f-body);font-size:14px;gap:4px;font-variant-numeric:normal}.sum>div{align-items:baseline}.sum>div>span:first-child{white-space:nowrap;padding-right:8px}.sum>div>span:last-child{text-align:right;font-weight:600}
+.row{display:grid;grid-template-columns:1fr 128px;align-items:center;gap:8px}
+.row label{color:var(--ink)}
+.row .u{color:var(--muted);font-size:12px}
+input[type=number],input[type=text],input[list],select{width:100%;box-sizing:border-box;font:inherit;font-family:var(--f-mono);font-size:13px;padding:5px 7px;border:1px solid var(--line);border-radius:5px;background:var(--canvas);color:var(--ink)}
+select{font-family:var(--f-body);font-size:14px}
+input[type=checkbox]{accent-color:var(--led);width:16px;height:16px;margin:0}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--skel);outline-offset:1px}
+.btn{font:inherit;font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:.06em;text-transform:uppercase;border-radius:6px;padding:9px 12px;cursor:pointer;border:1px solid var(--ink);background:var(--ink);color:var(--panel)}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn.red{background:var(--led);border-color:var(--led);color:var(--ledInk)}
+.btn.sm{font-size:13px;padding:6px 10px}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.pulse{box-shadow:0 0 0 3px color-mix(in srgb,var(--led) 45%,transparent)}
+.subh{font-family:var(--f-display);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:4px;border-top:1px solid var(--line2);padding-top:8px}
+.subh:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.orow{display:grid;grid-template-columns:96px 1fr;align-items:center;gap:8px}
+.grow{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center}
+.tplBtns{display:flex;flex-wrap:wrap;gap:6px}
+.tplStat{font-size:12.5px;line-height:1.45;overflow-wrap:anywhere}
+.tplStat b{font-weight:600}
+.tplStat.warn{color:var(--bad)}
+details.tplMap summary{cursor:pointer;font-size:12.5px;color:var(--muted)}
+table.tplmap{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px;table-layout:fixed}
+table.tplmap td{padding:2px 4px;border-bottom:1px solid var(--line2);vertical-align:top;overflow-wrap:anywhere}
+table.tplmap td:first-child{width:44%;color:var(--muted)}
+table.tplmap td.none{color:var(--muted);font-style:italic}
+.pname{color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0}
+.subsec{display:grid;gap:10px}.subsec .subbody{display:grid;gap:10px}.subsec.closed .subbody{display:none}
+.subh.tog{cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none}.subh.tog .chev{transition:transform .15s}.subsec.closed .subh.tog .chev{transform:rotate(-90deg)}
+.btn.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.orow .sw3{display:flex;gap:6px;align-items:center}
+.orow .chip{width:16px;height:16px;border-radius:3px;border:1px solid var(--line);flex:none;background:transparent}
+.presetRow{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center}
+.presetRow input{min-width:0}
+.btns{display:flex;gap:6px;flex-wrap:wrap}
+.btns .btn{flex:1}
+.note{font-size:12.5px;color:var(--muted);line-height:1.45}
+.msg{font-size:13px;padding:7px 10px;border-radius:5px;border-left:3px solid;line-height:1.4}
+.msg.ok{background:var(--okBg);border-color:var(--ok);color:var(--ink)}
+.msg.warn{background:var(--warnBg);border-color:var(--warn);color:var(--ink)}
+.msg.bad{background:var(--badBg);border-color:var(--bad);color:var(--ink)}
+.msgs{display:grid;gap:6px}
+table.types{width:100%;border-collapse:collapse;font-size:12px}
+table.types th{font-family:var(--f-display);font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;padding:2px 3px}
+table.types td{padding:2px 3px}
+table.types td:first-child{font-family:var(--f-mono);font-weight:600}
+table.types input{padding:4px 5px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 6px}
+.kpi{display:grid;gap:1px}
+.kpi small{font-family:var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-size:12px}
+.kpi b{font-family:var(--f-mono);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
+.kpi b.w{color:var(--warn)}
+.list{font-family:var(--f-mono);font-size:12.5px;display:grid;gap:2px;font-variant-numeric:tabular-nums}
+.list div{display:flex;justify-content:space-between}
+.foot{grid-area:foot;display:flex;align-items:center;gap:14px;border-top:1px solid var(--line);background:var(--panel);padding-block:6px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));font-size:12.5px;min-width:0}
+.foot .st{font-family:var(--f-mono);color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.foot .hint{color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+.foot .big{display:flex;gap:16px;align-items:center}
+.foot .big div{display:grid;line-height:1.1}
+.foot .big small{font-family:var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-size:11px}
+.foot .big b{font-family:var(--f-mono);font-size:18px}
+.toast{position:absolute;left:50%;top:14px;transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:7px 14px;border-radius:6px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:80%}
+.toast.on{opacity:1}
+@media (max-width:820px){
+  body{overflow:auto}
+  .app{height:auto;grid-template-columns:1fr;grid-template-rows:auto 62vh auto auto;grid-template-areas:"top" "stage" "foot" "rail"}
+  .rail{border-left:0;overflow:visible}
+  .foot{flex-wrap:wrap}
+  .foot .hint{display:none}
+  .layers{font-size:12px;min-width:0}
+  .sumbox{width:min(260px,52vw)}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<style>
+/* Kujundus: sama mis DAG Tellimuste lehel */
+:root{
+  --tm-bg:#f3f4f7; --tm-surface:#ffffff; --tm-sunk:#eceef3; --tm-ink:#161a22; --tm-muted:#5b6474; --tm-line:#dcdfe7;
+  --tm-accent:#1d58c9; --tm-accent-ink:#ffffff;
+  --tm-s-uus:#5b6474; --tm-s-uus-bg:#eceef3; --tm-s-kin:#1d58c9; --tm-s-kin-bg:#e3ebfb; --tm-s-too:#a35c00; --tm-s-too-bg:#fdf0dc;
+  --tm-s-val:#0b7a74; --tm-s-val-bg:#dcf3f1; --tm-s-ule:#2c7a2f; --tm-s-ule-bg:#e2f2e2; --tm-s-tyh:#a3333d; --tm-s-tyh-bg:#f8e3e5;
+  --tm-late:#c0303b; --tm-vt:#d3202b;
+  --tm-f-display:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
+  --tm-f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --tm-f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --tm-bg:#12151b; --tm-surface:#1a1e26; --tm-sunk:#222733; --tm-ink:#e8ebf1; --tm-muted:#9aa3b3; --tm-line:#2e3441;
+  --tm-accent:#6f9cf5; --tm-accent-ink:#0d1220;
+  --tm-s-uus:#aab2c0; --tm-s-uus-bg:#272c37; --tm-s-kin:#8db2ff; --tm-s-kin-bg:#1f2b45; --tm-s-too:#f2b45c; --tm-s-too-bg:#3a2a12;
+  --tm-s-val:#5fd3cb; --tm-s-val-bg:#123432; --tm-s-ule:#7fd182; --tm-s-ule-bg:#183219; --tm-s-tyh:#f08a92; --tm-s-tyh-bg:#3a1a1e;
+  --tm-late:#ff7b84; --tm-vt:#ff4a52; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --tm-bg:#12151b; --tm-surface:#1a1e26; --tm-sunk:#222733; --tm-ink:#e8ebf1; --tm-muted:#9aa3b3; --tm-line:#2e3441;
+  --tm-accent:#6f9cf5; --tm-accent-ink:#0d1220;
+  --tm-s-uus:#aab2c0; --tm-s-uus-bg:#272c37; --tm-s-kin:#8db2ff; --tm-s-kin-bg:#1f2b45; --tm-s-too:#f2b45c; --tm-s-too-bg:#3a2a12;
+  --tm-s-val:#5fd3cb; --tm-s-val-bg:#123432; --tm-s-ule:#7fd182; --tm-s-ule-bg:#183219; --tm-s-tyh:#f08a92; --tm-s-tyh-bg:#3a1a1e;
+  --tm-late:#ff7b84; --tm-vt:#ff4a52; color-scheme:dark}
+
+/* ---------- Valgustähed Tellimuste kujunduses ----------
+   Valgustähtede värvi- ja fondimuutujad suunatakse Tellimuste omadele ning nupud, pealkirjad ja paneelid
+   saavad Tellimuste kuju. :where(#vtView) hoiab reeglite tugevuse samana mis Valgustähtede omadel,
+   nii et need kirjutavad üle ainult siin nimetatud omadused. Joonise värvid (kihid, LED, raam) jäävad samaks. */
+#vtView{
+  --paper:var(--tm-bg); --panel:var(--tm-surface); --ink:var(--tm-ink); --muted:var(--tm-muted);
+  --line:var(--tm-line); --line2:var(--tm-sunk); --canvas:var(--tm-surface);
+  --f-display:var(--tm-f-display); --f-body:var(--tm-f-body); --f-mono:var(--tm-f-mono);
+  font-family:var(--tm-f-body); line-height:1.45;
+}
+:where(#vtView) .top{gap:12px}
+:where(#vtView) .brand{font-size:22px;letter-spacing:-.01em}
+/* nupud nagu Tellimustes: põhinupp sinine, teised valged äärisega, tavalised suur- ja väiketähed */
+:where(#vtView) .btn{font-family:var(--tm-f-body);font-weight:600;font-size:14px;letter-spacing:0;text-transform:none;border-radius:8px;padding:9px 14px;border:1px solid var(--tm-accent);background:var(--tm-accent);color:var(--tm-accent-ink)}
+:where(#vtView) .btn:hover{filter:brightness(1.08)}
+:where(#vtView) .btn.ghost{background:var(--tm-surface);border-color:var(--tm-line);color:var(--tm-ink);font-weight:500}
+:where(#vtView) .btn.ghost:hover{filter:none;border-color:var(--tm-muted)}
+:where(#vtView) .btn.red{background:var(--tm-accent);border-color:var(--tm-accent);color:var(--tm-accent-ink)}
+:where(#vtView) .btn.sm{font-size:13px;padding:6px 11px}
+:where(#vtView) .btn.on{background:var(--tm-ink);border-color:var(--tm-ink);color:var(--tm-bg)}
+:where(#vtView) .btn.pulse{box-shadow:0 0 0 3px color-mix(in srgb,var(--tm-accent) 40%,transparent)}
+:where(#vtView) .btn.gear.on{background:var(--tm-ink);color:var(--tm-bg);border-color:var(--tm-ink)}
+/* paneeli jaotised ja väikesed pealkirjad nagu tellimuse kaardi „TÖÖ“, „KLIENT“ */
+:where(#vtView) .sec>h2{font-family:var(--tm-f-body);font-size:12px;font-weight:600;letter-spacing:.1em;color:var(--tm-ink)}
+:where(#vtView) .subh,:where(#vtView) .kpi small,:where(#vtView) .foot .big small,:where(#vtView) .sumbox b,:where(#vtView) .layers b,:where(#vtView) table.types th{font-family:var(--tm-f-body);font-size:11px;letter-spacing:.1em;font-weight:600}
+:where(#vtView) .kpi b{font-family:var(--tm-f-display);font-size:22px}
+:where(#vtView) .foot .big b{font-family:var(--tm-f-display);font-size:20px}
+:where(#vtView) .v3dMsg{font-family:var(--tm-f-body);font-size:15px}
+/* väljad nagu tellimuse kaardil */
+:where(#vtView) :is(input[type=number],input[type=text],input[list],select){border-radius:6px;background:var(--tm-bg);font-family:var(--tm-f-body);font-size:13px}
+:where(#vtView) :is(input:focus-visible,select:focus-visible,button:focus-visible){outline-color:var(--tm-accent)}
+:where(#vtView) input[type=checkbox]{accent-color:var(--tm-accent)}
+/* ümaramad paneelid ja lülitid */
+:where(#vtView) .sumbox,:where(#vtView) .layers,:where(#vtView) .v3dPanel,:where(#vtView) .tools,:where(#vtView) .modeSw{border-radius:8px}
+:where(#vtView) .modeSw button{font-family:var(--tm-f-body);font-size:13px;letter-spacing:0;border-radius:999px;padding:5px 13px}
+:where(#vtView) .modeSw{border-radius:999px}
+:where(#vtView) .modeSw button.on{background:var(--tm-ink);color:var(--tm-bg)}
+:where(#vtView) .tools button.on{background:var(--tm-ink);color:var(--tm-bg)}
+:where(#vtView) .profset{border-radius:8px}
+:where(#vtView) .msg{border-radius:8px;border-left-width:0;padding:8px 12px}
+:where(#vtView) .toast{border-radius:999px;padding:9px 16px;background:var(--tm-ink);color:var(--tm-bg)}
+
+#vtView{height:100%}
+</style>
+
+<div id="vtView">
+<div class="app">
+  <header class="top">
+    <div class="brand"><i></i>Valgustähed</div>
+    <div class="file" id="fileInfo">Näidis</div>
+    <div class="sp"></div>
+    <div class="ver" id="appVer" title="Rakenduse versioon">v2.21 · 03.11.2026</div>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="cv"></canvas>
+    <div class="v3d" id="v3d" hidden><div class="v3dMsg" id="v3dMsg">Laadin 3D-vaadet…</div></div>
+    <div class="modeSw" id="modeSw" role="group" aria-label="Vaade"><button id="m2d" class="on">2D</button><button id="m3d">3D</button></div>
+    <div class="v3dPanel" id="v3dPanel" hidden>
+      <div class="row"><label for="s_depth">Külje kõrgus <span class="u">mm</span></label><input type="number" id="s_depth" min="10" step="5"></div>
+      <label class="chk" for="s_face"><span>Esiklaas</span><input type="checkbox" id="s_face"></label>
+      <button class="btn red sm" id="btnPdf">PDF kliendile</button>
+      <label class="chk" for="s_glow"><span>LED-id põlevad</span><input type="checkbox" id="s_glow"></label>
+    </div>
+    <div class="ovl">
+    <div class="sumbox" id="sumBox">
+      <b title="Näita või peida koondinfo">Koondinfo ▾</b>
+      <div class="list sum" id="sumList"></div>
+    </div>
+    <div class="layers" id="layers">
+      <b title="Näita või peida kihid">Kihid ▾</b>
+      <label><span><i class="sw" style="background:var(--ink)"></i>Kontuur</span><input type="checkbox" id="ly_cont" checked></label>
+      <label><span><i class="sw" style="background:var(--groove)"></i>Soon</span><input type="checkbox" id="ly_groove" checked></label>
+      <label><span><i class="sw" style="background:var(--base)"></i>Põhi</span><input type="checkbox" id="ly_base" checked></label>
+      <label><span><i class="sw" style="background:var(--side)"></i>Külg</span><input type="checkbox" id="ly_side" checked></label>
+      <label><span><i class="sw" style="background:var(--frame)"></i>Raam</span><input type="checkbox" id="ly_frame" checked></label>
+      <label><span><i class="sw" style="background:var(--mount)"></i>Kinnitusavad</span><input type="checkbox" id="ly_mount" checked></label>
+      <label><span><i class="sw" style="background:var(--hole)"></i>Veeavad</span><input type="checkbox" id="ly_hole" checked></label>
+      <label><span><i class="sw" style="background:var(--muted)"></i>Mõõdud</span><input type="checkbox" id="ly_dim" checked></label>
+      <label><span><i class="sw" style="background:var(--mount)"></i>Avade mõõdud</span><input type="checkbox" id="ly_mdim" checked></label>
+      <label><span><i class="sw" style="background:var(--skel)"></i>Keskjoon</span><input type="checkbox" id="ly_skel"></label>
+      <label><span><i class="sw" style="background:var(--soor)"></i>Söörid</span><input type="checkbox" id="ly_soor"></label>
+      <label><span><i class="sw" style="background:var(--led)"></i>LED-id</span><input type="checkbox" id="ly_led"></label>
+      <label><span><i class="sw" style="background:var(--bad)"></i>Kontroll</span><input type="checkbox" id="ly_check"></label>
+      <label><span><i class="sw" style="background:#f5d48a"></i>Valgus</span><input type="checkbox" id="ly_light"></label>
+      <label><span><i class="sw" style="background:var(--wire)"></i>Juhe</span><input type="checkbox" id="ly_wire"></label>
+    </div>
+    </div>
+    <div class="tools" id="tools">
+      <button data-tool="select" class="on" title="Vali ja liiguta (1)" aria-label="Vali ja liiguta"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 8-6 1.6L10 19z"/></svg></button>
+      <button data-tool="led" title="Lisa LED (2)" aria-label="Lisa LED"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 12h8"/><circle cx="12" cy="12" r="8" stroke-width="1.4" opacity=".6"/></svg></button>
+      <button data-tool="hole" title="Lisa veeauk (3)" aria-label="Lisa veeauk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c3.5 4.5 6 7.7 6 10.5A6 6 0 0 1 6 13.5C6 10.7 8.5 7.5 12 3z"/></svg></button>
+      <button data-tool="bar" title="Lisa horisontaalne profiil (6)" aria-label="Lisa horisontaalne profiil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3v18M19 3v18"/><rect x="5" y="10" width="14" height="4" fill="currentColor" stroke="none"/></svg></button>
+      <button data-tool="post" title="Lisa vertikaalne pulk (5)" aria-label="Lisa vertikaalne pulk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18M3 19h18"/><rect x="10" y="5" width="4" height="14" fill="currentColor" stroke="none"/></svg></button>
+      <button data-tool="screw" title="Lisa kinnitusava (8)" aria-label="Lisa kinnitusava"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="6"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg></button>
+      <button data-tool="measure" title="Mõõdulint (7)" aria-label="Mõõdulint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="2.5" y="8" width="19" height="8" rx="1"/><path d="M6 8v3M9.5 8v4.5M13 8v3M16.5 8v4.5"/></svg></button>
+      <button data-tool="delete" title="Kustuta (4)" aria-label="Kustuta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
+    </div>
+    <div class="toast" id="toast"></div>
+    <div class="drop" id="drop" hidden>Lase fail lahti<br><small style="font-size:15px;font-family:var(--f-body)">DXF-joonis või salvestatud projekt (.json)</small></div>
+  </main>
+
+  <aside class="rail" id="rail">
+    <section class="sec" id="secIn">
+      <h2>Sisend <span class="chev">▾</span></h2>
+      <button class="btn" id="btnLoad">Laadi DXF-fail…</button>
+      <input type="file" id="fileIn" accept=".dxf,.DXF" hidden>
+      <div class="btns">
+        <button class="btn ghost sm" id="btnSaveProj">Salvesta projekt</button>
+        <button class="btn ghost sm" id="btnOpenProj">Ava projekt…</button>
+      </div>
+      <input type="file" id="projIn" accept=".json,application/json" hidden>
+      <div class="row"><label for="s_chord">Kõõlutolerants <span class="u">mm</span></label><input type="number" id="s_chord" min="0.001" step="0.005"></div>
+      <div class="row"><label for="s_units">Ühikud</label><select id="s_units">
+        <option value="auto">failist</option><option value="mm">mm</option><option value="cm">cm</option><option value="m">m</option><option value="in">toll</option></select></div>
+    </section>
+
+    <section class="sec closed" id="secOrder">
+      <h2>Tellimuse info <span class="chev">▾</span></h2>
+      <div class="orow"><label for="o_title">Töö nimi</label><input type="text" id="o_title" autocomplete="off" placeholder="failinimi"></div>
+      <div class="orow"><label for="o_orderNo">Tellimus</label><input type="text" id="o_orderNo" autocomplete="off" placeholder="nt 10592"></div>
+      <div class="orow"><label for="o_date">Kuupäev</label><input type="text" id="o_date" autocomplete="off" placeholder="pp.kk.aaaa"></div>
+      <div class="orow"><label for="o_due">Tähtaeg</label><input type="text" id="o_due" autocomplete="off" placeholder="pp.kk.aaaa"></div>
+      <div class="orow"><label for="o_qty">Kogus</label><input type="text" id="o_qty" autocomplete="off" placeholder="nt 1tk"></div>
+      <div class="orow"><label for="o_location">Asukoht</label><input type="text" id="o_location" list="dl_loc" autocomplete="off" placeholder="Sees / Väljas"></div>
+      <div class="orow"><label for="o_drafter">Joonestas</label><input type="text" id="o_drafter" autocomplete="off" placeholder="initsiaalid"></div>
+      <datalist id="dl_loc"><option value="Sees"><option value="Väljas"></datalist>
+      <datalist id="dl_yes"><option value="Jah"><option value="Ei"></datalist>
+      <datalist id="dl_temp"><option value="3000K"><option value="4000K"><option value="6500K"></datalist>
+      <datalist id="dl_ral"></datalist>
+      <datalist id="dl_mat"><option value="Akrüül opaal 3 mm"><option value="Akrüül opaal 5 mm"><option value="Akrüül läbipaistev 3 mm"><option value="Polükarbonaat opaal 3 mm"><option value="Alumiinium 2 mm"></datalist>
+      <datalist id="dl_fmat"><option value="Alumiinium"><option value="Tsingitud teras"><option value="Roostevaba teras"><option value="Teras, pulbervärvitud"></datalist>
+      <datalist id="dl_film"><option value="Ilma kileta"><option value="Oracal 8500"><option value="Oracal 8300"><option value="3M Scotchcal 3630"></datalist>
+    </section>
+
+    <section class="sec closed" id="secParts">
+      <h2><span>Osad <span class="pname"></span></span> <span class="chev">▾</span></h2>
+      <div class="grow"><select id="g_sel" aria-label="Osa"></select><button class="btn ghost sm" id="g_add" title="Lisa uus osa (nt Logo, Tekst)">+ Lisa</button><button class="btn ghost sm" id="g_del" title="Kustuta valitud osa">Kustuta</button></div>
+      <div class="orow"><label for="g_name">Osa nimi</label><input type="text" id="g_name" autocomplete="off" placeholder="nt Logo, Tekst, Punane tekst"></div>
+      <button class="btn ghost sm" id="g_pick" title="Kliki joonisel tähtedele, et need sellesse ossa panna">Määra tähti joonisel</button>
+      <div class="note" id="g_info"></div>
+    </section>
+
+    <section class="sec closed" id="secFace">
+      <h2><span>Esipind <span class="pname"></span></span> <span class="chev">▾</span></h2>
+      <div class="orow"><label for="g_profType">Profiil</label><select id="g_profType"><option value="">Profiili jaotise järgi</option><option value="p3">P3 tahavalgusega</option><option value="liist">P6 peidetud liistuga</option><option value="klaas">P6 paks klaas</option></select></div>
+      <div class="orow"><label for="g_faceMat">Materjal</label><input type="text" id="g_faceMat" list="dl_mat" autocomplete="off"></div>
+      <div class="orow"><label for="g_faceFilm">Kleebis / kile</label><input type="text" id="g_faceFilm" list="dl_film" autocomplete="off"></div>
+      <div class="orow"><label for="g_faceColor">Värv</label><span class="sw3"><i class="chip" id="c_faceColor"></i><input type="text" id="g_faceColor" list="dl_ral" autocomplete="off" placeholder="nt RAL 9016"></span></div>
+    </section>
+
+    <section class="sec closed" id="secSide">
+      <h2><span>Külg <span class="pname"></span></span> <span class="chev">▾</span></h2>
+      <div class="orow"><label for="g_sideMat" title="Külje paksus x tähe sügavus, nt 0,7x60">Tähe sügavus</label><input type="text" id="g_sideMat" autocomplete="off" placeholder="nt 0,7x60"></div>
+      <div class="orow"><label for="g_sideColor">Värv</label><span class="sw3"><i class="chip" id="c_sideColor"></i><input type="text" id="g_sideColor" list="dl_ral" autocomplete="off" placeholder="nt RAL 9005"></span></div>
+      <div class="orow"><label for="g_screws">Kruvid</label><input type="text" id="g_screws" autocomplete="off" placeholder="nt 2,2x9,5"></div>
+    </section>
+
+    <section class="sec closed" id="secBack">
+      <h2><span>Tagapind <span class="pname"></span></span> <span class="chev">▾</span></h2>
+      <div class="orow"><label for="g_backMat">Materjal</label><input type="text" id="g_backMat" autocomplete="off" placeholder="nt 1mm AL"></div>
+      <div class="orow"><label for="g_backColor">Värv</label><input type="text" id="g_backColor" list="dl_ral" autocomplete="off"></div>
+      <div class="orow"><label for="g_backVisible">Nähtav</label><input type="text" id="g_backVisible" list="dl_yes" autocomplete="off" placeholder="Jah / Ei"></div>
+    </section>
+
+    <section class="sec closed" id="secLight">
+      <h2><span>Valgustus <span class="pname"></span></span> <span class="chev">▾</span></h2>
+      <div class="orow"><label for="g_modules">Moodulid</label><input type="text" id="g_modules" autocomplete="off"></div>
+      <div class="orow"><label for="g_lightTemp">Valguse temp.</label><input type="text" id="g_lightTemp" list="dl_temp" autocomplete="off" placeholder="nt 3000K"></div>
+      <div class="orow"><label for="g_dimmable">Dimmerdatav</label><input type="text" id="g_dimmable" list="dl_yes" autocomplete="off"></div>
+      <div class="orow"><label for="g_psu">Toiteplokk</label><input type="text" id="g_psu" autocomplete="off"></div>
+      <div class="orow"><label for="g_trafo">Trafo karp</label><input type="text" id="g_trafo" autocomplete="off"></div>
+      <div class="subh">Kogu sildi kohta</div>
+      <div class="orow"><label for="o_power">Võimsus</label><input type="text" id="o_power" autocomplete="off" placeholder="nt 48 W"></div>
+      <div class="orow"><label for="o_lumen">Valgusvoog</label><input type="text" id="o_lumen" autocomplete="off" placeholder="lm"></div>
+    </section>
+
+
+    <section class="sec closed" id="secFrame">
+      <h2>Raam <span class="chev">▾</span></h2>
+      <div class="orow"><label for="o_frameMat">Materjal</label><input type="text" id="o_frameMat" list="dl_fmat" autocomplete="off" placeholder="nt alumiinium"></div>
+      <div class="orow"><label for="s_frameProf">Profiil</label><select id="s_frameProf"><option value="30">U30x30</option><option value="25">U25x25</option><option value="20">U20x20</option><option value="">kohandatud</option></select></div>
+      <div class="orow"><label for="o_frameColor">Värv</label><span class="sw3"><i class="chip" id="c_frameColor"></i><input type="text" id="o_frameColor" list="dl_ral" autocomplete="off" placeholder="nt RAL 7035"></span></div>
+      <div class="orow"><label for="o_hooks">Konksud</label><input type="text" id="o_hooks" autocomplete="off"></div>
+      <div class="subh">Raami paigutuse seaded</div>
+      <div class="row"><label for="s_profile">Raami laius <span class="u">mm</span></label><input type="number" id="s_profile" min="5" step="1"></div>
+      <div class="row"><label for="s_barGap">Max raamivahe <span class="u">mm</span></label><input type="number" id="s_barGap" min="50" step="10"></div>
+      <div class="row"><label for="s_barEnd">Min vahe otstest <span class="u">mm</span></label><input type="number" id="s_barEnd" min="0" step="1"></div>
+      <div class="row"><label for="s_barExt">Raami jätk</label><input type="checkbox" id="s_barExt"></div>
+      <div class="row" id="rowBarExt"><label for="s_barSegMax">Max segment kontuuri servast <span class="u">mm</span></label><input type="number" id="s_barSegMax" min="100" step="50"></div>
+      <div class="row"><label for="s_postGap">Max pulkade vahe <span class="u">mm</span></label><input type="number" id="s_postGap" min="100" step="50"></div>
+      <div class="list" id="frameList"></div>
+      <button class="btn ghost sm" id="btnAlign" disabled>Joonda valitud pulgad ühele joonele</button>
+    </section>
+
+    <section class="sec closed" id="secHoles">
+      <h2>Avad <span class="chev">▾</span></h2>
+      <div class="row"><label for="s_mountD">Kinnitusava Ø <span class="u">mm</span></label><input type="number" id="s_mountD" min="1" step="0.5"></div>
+      <div class="row" id="rowCable"><label for="s_cableD">Kaabliava Ø (P3) <span class="u">mm</span></label><input type="number" id="s_cableD" min="1" step="0.5"></div>
+      <div class="row"><label for="s_mountEnd" title="Esimese ja viimase kinnitusava kaugus raami otsast. 0 = pool raami laiust">Otsaava kaugus (0 = ½ raami) <span class="u">mm</span></label><input type="number" id="s_mountEnd" min="0" step="1"></div>
+      <div class="row"><label for="s_mountTwo">2 ava, kui lõik üle <span class="u">mm</span></label><input type="number" id="s_mountTwo" min="10" step="5"></div>
+      <div class="row"><label for="s_drainMode">Veeava kuju</label><select id="s_drainMode"><option value="notch">sälk põhja servas</option><option value="hole">ümar ava</option><option value="none">veeava ei ole</option></select></div>
+      <div class="row"><label for="s_holeD">Veeava Ø / sälgu laius <span class="u">mm</span></label><input type="number" id="s_holeD" min="1" step="0.5"></div>
+      <div class="row"><label for="s_notchDepth">Sälgu sügavus <span class="u">mm</span></label><input type="number" id="s_notchDepth" min="1" step="0.5"></div>
+      <div class="list" id="holeList"></div>
+    </section>
+
+    <section class="sec closed" id="secPlace">
+      <h2>LED paigutus <span class="chev">▾</span></h2>
+      <div class="row"><label for="s_type">LED-tüüp</label><select id="s_type"></select></div>
+      <div class="row"><label for="s_pitch">Samm <span class="u">mm</span></label><input type="number" id="s_pitch" min="20" step="5"></div>
+      <button class="btn" id="btnAuto">Paiguta automaatselt</button>
+    </section>
+
+    <section class="sec closed" id="secProf">
+      <h2>Profiil ja täpsemad seaded <span class="chev">▾</span></h2>
+      <div class="row" style="grid-template-columns:auto 1fr"><label for="s_profType">Tüüp</label><select id="s_profType"><option value="p3">P3 tahavalgusega</option><option value="liist">P6 peidetud liistuga</option><option value="klaas">P6 paks klaas</option></select></div>
+      <div class="row" style="grid-template-columns:auto 1fr auto"><label for="s_preset">Eelseadistus</label><select id="s_preset"></select><button class="btn ghost sm gear" id="btnProfSet" title="Seaded: nihked, raadiused ja eelseadistuste haldus" aria-label="Profiili seaded" aria-expanded="false"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button></div>
+      <div class="note" id="presetNote" hidden></div>
+      <div class="profset" id="profSet" hidden>
+        <div class="row"><label for="s_offBase">Põhi <span class="u">mm</span></label><input type="number" id="s_offBase" step="0.1"></div>
+        <div class="row"><label for="s_offSide">Külg <span class="u">mm</span></label><input type="number" id="s_offSide" step="0.1"></div>
+        <div class="row" id="rowGroove"><label for="s_offGroove">Soon <span class="u">mm</span></label><input type="number" id="s_offGroove" step="0.1"></div>
+        <div class="row"><label for="s_rIn">Sisenurga raadius <span class="u">mm</span></label><input type="number" id="s_rIn" min="0" step="0.1"></div>
+        <div class="row"><label for="s_rOut">Välisnurga raadius <span class="u">mm</span></label><input type="number" id="s_rOut" min="0" step="0.1"></div>
+        <div class="psub">Eelseadistused</div>
+        <div class="btns"><button class="btn ghost sm" id="btnPresetUpd" title="Salvesta praegused väärtused valitud eelseadistusse">Uuenda valitut</button><button class="btn ghost sm" id="btnPresetDel" title="Kustuta valitud eelseadistus">Kustuta</button></div>
+        <input type="text" id="s_presetName" placeholder="Nimi uuele või ümbernimetamiseks" aria-label="Eelseadistuse nimi" maxlength="40">
+        <div class="btns"><button class="btn ghost sm" id="btnPresetSave" title="Salvesta praegused väärtused uue eelseadistusena">Salvesta uuena</button><button class="btn ghost sm" id="btnPresetRen" title="Anna valitud eelseadistusele see nimi">Nimeta ümber</button></div>
+      </div>
+      <div class="list" id="profList"></div>
+      <div class="subh">Täpsemad seaded</div>
+      <div class="row"><label for="s_density">LED-ide tihedus</label><select id="s_density">
+        <option value="sparse">hõre</option><option value="balanced">tasakaal</option><option value="dense">tihe</option></select></div>
+      <table class="types"><thead><tr><th>Tüüp</th><th>Samm</th><th>Söör Ø</th><th>Kriips</th></tr></thead><tbody id="typeRows"></tbody></table>
+      <div class="row"><label for="s_edge">Servakaugus min <span class="u">mm</span></label><input type="number" id="s_edge" min="0" step="1"></div>
+      <div class="row"><label for="s_corner">Nurga piir <span class="u">°</span></label><input type="number" id="s_corner" min="10" max="120" step="5"></div>
+      <div class="row"><label for="s_multi">Mitu rida alates <span class="u">× samm</span></label><input type="number" id="s_multi" min="1" step="0.1"></div>
+      <div class="row"><label for="s_rowGap">Ridade vahe <span class="u">× samm</span></label><input type="number" id="s_rowGap" min="0.5" step="0.05"></div>
+      <div class="row"><label for="s_panel">Pinnatäide alates <span class="u">× samm</span></label><input type="number" id="s_panel" min="1" step="0.1"></div>
+      <div class="row"><label for="s_hex">Hex-nihe</label><input type="checkbox" id="s_hex"></div>
+      <div class="row"><label for="s_gap">Tühja koha piir <span class="u">× samm</span></label><input type="number" id="s_gap" min="0.3" step="0.05"></div>
+      <div class="row"><label for="s_tol">Suletuse tol <span class="u">mm</span></label><input type="number" id="s_tol" min="0" step="0.05"></div>
+      <div class="row"><label for="s_overMax">Ülevalgustus max <span class="u">%</span></label><input type="number" id="s_overMax" min="0" step="1"></div>
+      <div class="row"><label for="s_covMin">Kate min <span class="u">%</span></label><input type="number" id="s_covMin" min="0" step="1"></div>
+      <button class="btn ghost sm" id="btnReset">Taasta vaikeseaded</button>
+    </section>
+
+    <section class="sec closed" id="secLetter" hidden>
+      <h2>Valitud täht <span class="chev">▾</span></h2>
+      <div class="note" id="letInfo"></div>
+      <div class="row"><label for="l_type">LED-tüüp</label><select id="l_type"></select></div>
+      <div class="row"><label for="l_mode">Paigutusviis</label><select id="l_mode">
+        <option value="auto">automaatne</option><option value="line">keskjoon (1 rida)</option><option value="rows">mitu rida</option><option value="fill">pinnatäide</option></select></div>
+      <button class="btn ghost sm" id="btnLetter">Paiguta see täht uuesti</button>
+    </section>
+
+
+    <section class="sec closed" id="secRep">
+      <h2>Raport <span class="chev">▾</span></h2>
+      <div class="kpis">
+        <div class="kpi"><small>söörikate</small><b id="k_cov">–</b></div>
+        <div class="kpi"><small>ülevalgustus</small><b id="k_over">–</b></div>
+        <div class="kpi"><small>keskjoonel</small><b id="k_axis">–</b></div>
+        <div class="kpi"><small>tihedus</small><b id="k_dens">–</b></div>
+        <div class="kpi"><small>LED-e</small><b id="k_leds">–</b></div>
+        <div class="kpi"><small>veeauke</small><b id="k_holes">–</b></div>
+      </div>
+      <div class="list" id="repList"></div>
+      <div class="msgs" id="repMsgs"></div>
+    </section>
+
+    <section class="sec" id="secOut">
+      <h2>Eksport <span class="chev">▾</span></h2>
+      <div class="row"><label for="s_fileFmt">Vorming</label><select id="s_fileFmt"><option value="dxf">DXF</option><option value="dwg">DWG (AutoCAD 2018)</option></select></div>
+      <div class="row"><label for="s_curveMode">Kõverad ekspordis</label><select id="s_curveMode"><option value="lines">sirged (kõõlutolerantsi piires)</option><option value="arcs">kaared</option></select></div>
+      <div class="subh">Mall</div>
+      <div class="tplStat" id="nfStat"></div>
+      <div class="row" id="nfUseRow" hidden><label for="s_useNf">Ekspordi malli peale</label><input type="checkbox" id="s_useNf"></div>
+      <div class="tplBtns"><button class="btn ghost sm" id="btnNfIn">Laadi mall…</button><button class="btn ghost sm" id="btnNfDel" hidden>Eemalda</button></div>
+      <input type="file" id="nfIn" accept=".dwt,.dwg,.dxf" hidden>
+      <button class="btn red" id="btnExport">Ekspordi DXF</button>
+      <button class="btn ghost" id="btnExportSide">Ekspordi külg (spline DXF)</button>
+      <button class="btn ghost" id="btnExportFrame" hidden>Ekspordi raami joonis (DXF)</button>
+      <button class="btn ghost" id="btnExportSheet" hidden>Ekspordi tootmisjoonis (DXF)</button>
+      <button class="btn ghost" id="btnExportPdf" hidden title="Üldjoonis ja raamijoonis A3 PDF-ina koos kogu tellimuse info ja värvinäidistega">Ekspordi joonised (PDF)</button>
+      <div id="tplBox" hidden><!-- template export: hidden for now, to be revisited -->
+      <div class="subh">Joonise templat</div>
+      <div class="tplStat" id="tplStat">Laadin…</div>
+      <div class="row"><label for="s_useTpl">Kasuta tootmis- ja raamijoonisel</label><input type="checkbox" id="s_useTpl"></div>
+      <div class="tplBtns"><button class="btn ghost sm" id="btnTplUp" hidden>Laadi templat üles (DXF)</button><button class="btn ghost sm" id="btnTplDel" hidden>Eemalda templat</button></div>
+      <input type="file" id="tplIn" accept=".dxf" hidden>
+      <details class="tplMap" id="tplMap" hidden><summary>Väljad, mis lähevad DWGPROPS-i</summary><table class="tplmap"><tbody id="tplMapT"></tbody></table></details>
+      <div class="note" id="tplNote" hidden>Töö läheb templati mudelruumi koordinaatidele 0;0 ja iga lehe vaateaken sätitakse sellele standardmõõtkavas. Fail tuleb DXF-ina (AutoCAD 2018), sest DWG-teek ei suuda templatit muutmata kujul kirjutada; AutoCAD-is Save As → DWG. Faili nimi on töö nimi, sest nurgatempli „Töö nimi“ loeb seda failinimest.</div>
+      </div>
+    </section>
+  </aside>
+
+  <footer class="foot">
+    <span class="st" id="stCursor">X – · Y –</span>
+    <span class="st" id="stCounts"></span>
+    <span class="hint" id="hint">Kliki tähel, et muuta selle LED-tüüpi · lohista LED-e ja auke · Shift+lohista raami · tühjal alal lohista vaadet · ratas suumib</span>
+    <div class="big">
+      <div><small>LED-e</small><b id="f_leds">0</b></div>
+      <div><small>Kate</small><b id="f_cov">–</b></div>
+      <button class="btn ghost sm" id="btnFit">Mahuta vaatesse</button>
+    </div>
+  </footer>
+</div>
+</div>
+
+<script src="lib/acadts.js"></script>
+<script src="js/core/geom.js"></script>
+<script src="js/core/dxf-lugemine.js"></script>
+<script src="js/core/tahed.js"></script>
+<script src="js/core/keskjoon.js"></script>
+<script src="js/core/led.js"></script>
+<script src="js/core/veeavad.js"></script>
+<script src="js/core/profiil.js"></script>
+<script src="js/core/raam.js"></script>
+<script src="js/core/dxf-kirjutamine.js"></script>
+<script src="js/core/naidised.js"></script>
+<script src="js/core.js"></script>
+<script src="js/tplmerge.js"></script>
+
+<script src="js/olek.js"></script>
+<script src="js/sisend.js"></script>
+<script src="js/profiil.js"></script>
+<script src="js/paigutus.js"></script>
+<script src="js/paneel.js"></script>
+<script src="js/vaade2d.js"></script>
+<script src="js/raam.js"></script>
+<script src="js/tooriistad.js"></script>
+<script src="js/eksport.js"></script>
+<script src="js/projekt.js"></script>
+<script src="js/joonised.js"></script>
+<script src="js/tellimus.js"></script>
+<script src="js/kliendi-pdf.js"></script>
+<script src="js/vaade3d.js"></script>
+<script src="js/templat.js"></script>
+<script src="js/naidisfail.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

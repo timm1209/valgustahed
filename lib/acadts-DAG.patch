@@ -1,0 +1,269 @@
+diff -ruN '--exclude=*.map' acad/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgReader.js acadp/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgReader.js
+--- acad/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgReader.js	2026-11-02 16:30:01.092408025 +0200
++++ acadp/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgReader.js	2026-11-03 09:31:05.750464553 +0200
+@@ -189,6 +189,7 @@
+             .map(a => a);
+         const sectionReader = new DwgObjectReader(this._fileHeader.acadVersion, this._builder, sreader, objectHandles, handles, this._document.classes);
+         sectionReader.read();
++        try { this._document.dwgRaw = sectionReader.collectRaw(); } catch (e) { } /* DAG patch: original object records for verbatim write-back */
+     }
+     _readAuxHeader() {
+         const stream = this._getSectionStream(DwgSectionDefinition.auxHeader);
+diff -ruN '--exclude=*.map' acad/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamReaders/DwgHeaderReader.js acadp/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamReaders/DwgHeaderReader.js
+--- acad/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamReaders/DwgHeaderReader.js	2026-11-02 16:30:01.078006917 +0200
++++ acadp/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamReaders/DwgHeaderReader.js	2026-11-03 09:33:08.150079395 +0200
+@@ -422,6 +422,7 @@
+         }
+         if (this.r2000Plus) {
+             const flags = this._reader.readBitLong();
++            this._header.dwgFlagsRaw = flags; /* DAG patch: written back as is */
+             this._header.currentEntityLineWeight = (flags & 0x1F);
+             this._header.endCaps = flags & 0x60;
+             this._header.joinStyle = flags & 0x180;
+diff -ruN '--exclude=*.map' acad/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamReaders/DwgObjectReader.js acadp/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamReaders/DwgObjectReader.js
+--- acad/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamReaders/DwgObjectReader.js	2026-11-02 16:30:01.087275447 +0200
++++ acadp/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamReaders/DwgObjectReader.js	2026-11-03 09:31:05.752144784 +0200
+@@ -321,9 +321,26 @@
+             }
+             if (template == null)
+                 continue;
++            /* DAG patch: keep the object's original record (size, data, CRC) for a verbatim write-back of objects the writer cannot reproduce */
++            try { if (template.cadObject && this._version >= ACadVersion.AC1018) { this._crcReader.position = offset; const sz = this._crcReader.readModularShort(); if (this.r2010Plus) this._crcReader.readModularChar(); const end = this._crcReader.position + sz + 2; template.cadObject.dwgRawRecord = this._memoryStream.slice(offset, end); template.cadObject.dwgRawType = type; } } catch (e) { }
+             this._builder.addTemplate(template);
+         }
+     }
++    /* DAG patch: every object record of the file: handle -> { raw (MS size [+MC] + data + CRC), type, dxfName } */
++    collectRaw() {
++        const out = new Map();
++        if (this._version < ACadVersion.AC1018) return out;
++        for (const [handle, offset] of this._map) {
++            try {
++                const type = this._getEntityType(offset);
++                this._crcReader.position = offset; const sz = this._crcReader.readModularShort(); if (sz <= 0) continue; if (this.r2010Plus) this._crcReader.readModularChar();
++                const end = this._crcReader.position + sz + 2; if (end > this._memoryStream.length) continue;
++                const c = this._classes.get(type);
++                out.set(handle, { raw: this._memoryStream.slice(offset, end), type, dxfName: c ? c.dxfName : null });
++            } catch (e) { }
++        }
++        return out;
++    }
+     _getEntityType(offset) {
+         let type = ObjectType.INVALID;
+         this._crcReader.position = offset;
+@@ -5071,10 +5088,28 @@
+                     value.setValue(this._mergedReaders.readBitDouble());
+                     break;
+                 case CadValueType.General:
++                    value.setValue(this._readStringCadValue());
++                    break;
+                 case CadValueType.String:
++                    if (this.r2007Plus) { /* DAG patch: R2007+ string = BL byte size + raw UTF-16LE (with terminating 0) */
++                        const n = this._mergedReaders.readBitLong();
++                        const raw = n > 0 ? this._mergedReaders.readBytes(n) : new Uint8Array(0);
++                        value.rawData = raw;
++                        let str = new TextDecoder("utf-16le").decode(raw); const z = str.indexOf("\0"); if (z >= 0) str = str.slice(0, z);
++                        value.setValue(str);
++                        break;
++                    }
+                     value.setValue(this._readStringCadValue());
+                     break;
+                 case CadValueType.Date: {
++                    /* DAG patch: R2007+ date is BL size + raw bytes (SYSTEMTIME); kept raw for an exact write-back */
++                    if (this.r2007Plus) {
++                        const n = this._mergedReaders.readBitLong();
++                        const raw = n > 0 ? this._mergedReaders.readBytes(n) : new Uint8Array(0);
++                        value.rawData = raw;
++                        if (n >= 16) { const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength); try { value.setValue(new Date(dv.getInt16(0, true), dv.getInt16(2, true) - 1, dv.getInt16(6, true), dv.getInt16(8, true), dv.getInt16(10, true), dv.getInt16(12, true), dv.getInt16(14, true))); } catch (e) { } }
++                        break;
++                    }
+                     const dateTime = this._readDateCadValue();
+                     if (dateTime !== null) {
+                         value.setValue(dateTime);
+@@ -5082,18 +5117,25 @@
+                     break;
+                 }
+                 case CadValueType.Point2D:
+-                    value.setValue(this._readValueXY());
+-                    break;
+-                case CadValueType.Point3D:
+-                    value.setValue(this._readValueXYZ());
++                case CadValueType.Point3D: {
++                    /* DAG patch: BL size + raw doubles (as the writer writes them) */
++                    const n = this._mergedReaders.readBitLong();
++                    const raw = n > 0 ? this._mergedReaders.readBytes(n) : new Uint8Array(0);
++                    value.rawData = raw;
++                    if (n >= 16) { const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength); value.setValue(n >= 24 ? new XYZ(dv.getFloat64(0, true), dv.getFloat64(8, true), dv.getFloat64(16, true)) : new XY(dv.getFloat64(0, true), dv.getFloat64(8, true))); }
+                     break;
++                }
+                 case CadValueType.Handle:
+                     template.valueHandle = this._handleReference();
+                     break;
+                 case CadValueType.Buffer:
+-                case CadValueType.ResultBuffer:
+-                    value.value = this._mergedReaders.readBitLong();
++                case CadValueType.ResultBuffer: {
++                    /* DAG patch: BL size + raw bytes */
++                    const n = this._mergedReaders.readBitLong();
++                    value.rawData = n > 0 ? this._mergedReaders.readBytes(n) : new Uint8Array(0);
++                    value.value = n;
+                     break;
++                }
+                 default:
+                     this._builder.notify(`DWG CadValue uses an unsupported value type ${value.valueType}; leaving the raw value empty.`, NotificationType.Warning);
+                     break;
+diff -ruN '--exclude=*.map' acad/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamWriters/DwgHeaderWriter.js acadp/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamWriters/DwgHeaderWriter.js
+--- acad/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamWriters/DwgHeaderWriter.js	2026-11-02 16:30:01.080138404 +0200
++++ acadp/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamWriters/DwgHeaderWriter.js	2026-11-03 09:33:08.150530794 +0200
+@@ -623,6 +623,7 @@
+             if (this._header.loadOLEObject) {
+                 flags |= 0x4000;
+             }
++            if (typeof this._header.dwgFlagsRaw === 'number') flags = this._header.dwgFlagsRaw; /* DAG patch */
+             this._writer.writeBitLong(flags);
+             this._writer.writeBitShort(this._header.insUnits);
+             this._writer.writeBitShort(this._header.currentEntityPlotStyle);
+diff -ruN '--exclude=*.map' acad/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamWriters/DwgObjectWriter.js acadp/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamWriters/DwgObjectWriter.js
+--- acad/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamWriters/DwgObjectWriter.js	2026-11-02 16:30:01.089235334 +0200
++++ acadp/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgStreamWriters/DwgObjectWriter.js	2026-11-03 09:32:02.584402120 +0200
+@@ -244,6 +244,22 @@
+         }
+         this._writeBlockEntities();
+         this._writeObjects();
++        this._writeRawLeftovers();
++    }
++    /* DAG patch: objects of the source file that were not written (not supported or not attached to the document)
++       are copied verbatim: same handle, same class number (checked), so their references stay valid */
++    _writeRawLeftovers() {
++        const src = this._document.dwgRaw; if (!src || !src.size) return;
++        let n = 0;
++        for (const [handle, rec] of src) {
++            if (this.map.has(handle)) continue;
++            if (rec.type >= 500) { const c = this._document.classes.tryGetByName(rec.dxfName || ""); if (!(c && c.found && c.result && c.result.classNumber === rec.type)) continue; }
++            this._ensureStreamCapacity(this._streamPos + rec.raw.length + 64);
++            this._stream.set(rec.raw, this._streamPos);
++            this.map.set(handle, this._streamPos);
++            this._streamPos += rec.raw.length; n++;
++        }
++        if (n) this.notify(`${n} source objects copied verbatim`, NotificationType.None);
+     }
+     // ==================== Main Writer Methods ====================
+     _writeLTypeControlObject() {
+@@ -956,6 +972,16 @@
+     }
+     // ==================== Common Methods ====================
+     _registerObject(cadObject) {
++        /* DAG patch: an object read from the source file and not changed since (no dwgDirty) is written as its original record */
++        if (cadObject && cadObject.dwgRawRecord && !cadObject.dwgDirty && this.dwgVerbatim !== false && this._rawTypeOk(cadObject)) {
++            const raw = cadObject.dwgRawRecord;
++            this._ensureStreamCapacity(this._streamPos + raw.length + 64);
++            this._stream.set(raw, this._streamPos);
++            this.map.set(cadObject.handle, this._streamPos);
++            this._streamPos += raw.length;
++            this.verbatimCount = (this.verbatimCount || 0) + 1;
++            return;
++        }
+         this._writer.writeSpearShift();
+         // Update _msmainPos from writer position (C# used MemoryStream.Position)
+         this._msmainPos = Math.ceil(this._writer.main.positionInBits / 8);
+@@ -2869,6 +2895,15 @@
+             this._objects.push(e);
+         }
+     }
++    _rawTypeOk(obj) {
++        if (obj.dwgRawType == null) return false;
++        if (obj.dwgRawType < 500) return true;
++        return this._rawClassOk(obj);
++    }
++    _rawClassOk(obj) {
++        const c = this._document.classes.tryGetByName(obj.objectName);
++        return !!(c && c.found && c.result && c.result.classNumber === obj.dwgRawType);
++    }
+     _skipEntry(entry) {
+         if (entry instanceof XRecord && !this.writeXRecords)
+             return { skip: true, notify: false };
+@@ -2900,6 +2935,15 @@
+             this.notify(`Invalid object ${obj.constructor.name}: ${validationErrors.join(' ')}`, NotificationType.Warning);
+             return;
+         }
++        /* DAG patch: objects this writer gets wrong are copied verbatim from the source file (same handle, same class number) */
++        if (obj.dwgRawRecord && !obj.dwgDirty && (obj instanceof MultiLeaderObjectContextData || obj instanceof EvaluationGraph || obj instanceof BlockRepresentationData || obj instanceof DynamicBlockPurgePreventer) && this._rawClassOk(obj)) {
++            const raw = obj.dwgRawRecord;
++            this._ensureStreamCapacity(this._streamPos + raw.length + 64);
++            this._stream.set(raw, this._streamPos);
++            this.map.set(obj.handle, this._streamPos);
++            this._streamPos += raw.length;
++            return;
++        }
+         const { skip, notify: shouldNotify } = this._skipEntry(obj);
+         if (skip) {
+             if (shouldNotify) {
+@@ -3748,7 +3792,7 @@
+         this._writer.writeVariableText(field.fieldCode);
+         this._writer.writeBitLong(field.children.length);
+         for (const f of field.children) {
+-            this._writer.handleReferenceTyped(DwgReferenceType.HardOwnership, field);
++            this._writer.handleReferenceTyped(DwgReferenceType.HardOwnership, f); /* DAG patch: was the field itself */
+         }
+         this._writer.writeBitLong(field.cadObjects.length);
+         for (const cobj of field.cadObjects) {
+@@ -3799,16 +3843,27 @@
+                     this._writer.writeBitDouble(value.value);
+                     break;
+                 case CadValueType.General:
++                    this._writeStringCadValue(value.value);
++                    break;
+                 case CadValueType.String:
++                    if (this.r2007Plus) { /* DAG patch: BL byte size + raw UTF-16LE with terminating 0 */
++                        let raw = value.rawData;
++                        if (!raw || value.rawText !== undefined) { const t = String(value.value ?? ""); raw = new Uint8Array(t.length * 2 + 2); const dv = new DataView(raw.buffer); for (let i = 0; i < t.length; i++) dv.setUint16(i * 2, t.charCodeAt(i), true); }
++                        this._writer.writeBitLong(raw.length); if (raw.length) this._writer.writeBytes(raw);
++                        break;
++                    }
+                     this._writeStringCadValue(value.value);
+                     break;
+                 case CadValueType.Date:
++                    if (value.rawData && this.r2007Plus) { this._writer.writeBitLong(value.rawData.length); if (value.rawData.length) this._writer.writeBytes(value.rawData); break; } /* DAG patch */
+                     this._writeDateCadValue(value.value);
+                     break;
+                 case CadValueType.Point2D:
++                    if (value.rawData) { this._writer.writeBitLong(value.rawData.length); if (value.rawData.length) this._writer.writeBytes(value.rawData); break; }
+                     this._writeCadValueXY(value.value);
+                     break;
+                 case CadValueType.Point3D:
++                    if (value.rawData) { this._writer.writeBitLong(value.rawData.length); if (value.rawData.length) this._writer.writeBytes(value.rawData); break; }
+                     this._writeCadValueXYZ(value.value);
+                     break;
+                 case CadValueType.Handle:
+@@ -3816,7 +3871,8 @@
+                     break;
+                 case CadValueType.Buffer:
+                 case CadValueType.ResultBuffer:
+-                    this._writer.writeBitLong(typeof value.value === 'number' ? value.value : 0);
++                    if (value.rawData) { this._writer.writeBitLong(value.rawData.length); if (value.rawData.length) this._writer.writeBytes(value.rawData); break; } /* DAG patch */
++                    this._writer.writeBitLong(0);
+                     break;
+                 default:
+                     this.notify(`DWG CadValue type ${value.valueType} is unsupported during writing; emitting an empty placeholder value.`, NotificationType.Warning);
+diff -ruN '--exclude=*.map' acad/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgWriter.js acadp/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgWriter.js
+--- acad/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgWriter.js	2026-11-02 16:30:01.115397804 +0200
++++ acadp/node_modules/@node-projects/acad-ts/dist/IO/DWG/DwgWriter.js	2026-11-03 09:47:29.195458373 +0200
+@@ -141,7 +141,7 @@
+         if (this._fileHeader.acadVersion < ACadVersion.AC1018)
+             return;
+         if (this._document.summaryInfo) {
+-            const stream = new Uint8Array(8192);
++            const stream = new Uint8Array(65536); /* DAG patch: room for long custom properties */
+             const writer = new DwgSummaryInfoWriter(this._version, stream, this._encoding);
+             writer.write(this._document.summaryInfo);
+             const data = new Uint8Array(writer.writerStream).slice(0, writer.bytesWritten);
+diff -ruN '--exclude=*.map' acad/node_modules/@node-projects/acad-ts/dist/IO/Templates/CadFieldTemplate.js acadp/node_modules/@node-projects/acad-ts/dist/IO/Templates/CadFieldTemplate.js
+--- acad/node_modules/@node-projects/acad-ts/dist/IO/Templates/CadFieldTemplate.js	2026-11-02 16:30:00.862980623 +0200
++++ acadp/node_modules/@node-projects/acad-ts/dist/IO/Templates/CadFieldTemplate.js	2026-11-03 09:25:36.195864305 +0200
+@@ -22,6 +22,7 @@
+             const f = builder.tryGetCadObject(handle);
+             if (f) {
+                 this.cadObject.children.push(f);
++                if (!f.owner) f.owner = this.cadObject; /* DAG patch: child fields are owned by their parent field */
+             }
+             else {
+                 builder.notify(`[${this.cadObject.subclassMarker}] CadObject with handle ${handle} not found.`, NotificationType.Warning);

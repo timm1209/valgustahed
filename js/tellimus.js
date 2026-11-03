@@ -40,7 +40,7 @@ function fillGroups() {
   document.querySelectorAll(".pname").forEach(e => { e.textContent = S.groups.length > 1 ? "· " + (S.groups[S.gCur].name || "") : ""; });
   const idx = S.letters.map((L, i) => (L.group || 0) === S.gCur ? i + 1 : null).filter(Boolean);
   $("g_info").textContent = S.letters.length ? (idx.length ? `Selles osas ${idx.length} kuju: ${idx.length > 20 ? idx.slice(0, 20).join(", ") + " …" : idx.join(", ")}` : "Selles osas pole veel ühtegi kuju.") : "";
-  paintChips();
+  paintChips(); fillScrewQty();
 }
 /* letter depth of a part: "0,7x60" -> thickness 0,7 and depth 60; missing parts fall back to the profile preset / 3D depth */
 function sideSpec(g) {
@@ -51,6 +51,16 @@ function sideSpec(g) {
   return { th, depth, text: (th ? th + "x" : "") + Core.fmtMM(depth) };
 }
 const depthOf = i => sideSpec(grpOf(i)).depth;
+/* side screws: 4 per metre of contour (outer and inner loops of every letter in the part), rounded up; a typed value overrides */
+const SCREWS_PER_M = 4;
+function contourLen(gi) { let s = 0; S.letters.forEach(L => { if ((L.group || 0) === gi) for (const lp of L.loops) s += Core.perimOf(lp); }); return s; }
+function screwAuto(gi) { const m = contourLen(gi) / 1000; return m > 0 ? Math.ceil(m * SCREWS_PER_M) : 0; }
+function screwQty(g) { const gi = S.groups.indexOf(g); const own = String(g.screwQty || "").trim(); if (own) return own; const n = screwAuto(gi < 0 ? 0 : gi); return n ? n + " tk" : ""; }
+function fillScrewQty() {
+  const g = S.groups[S.gCur]; if (!g || !$("g_screwQty")) return; const own = String(g.screwQty || "").trim();
+  if (document.activeElement !== $("g_screwQty")) $("g_screwQty").value = own || (screwAuto(S.gCur) ? screwAuto(S.gCur) + " tk" : "");
+  $("g_screwAuto").hidden = !!own; $("g_screwAuto").textContent = "auto · " + (contourLen(S.gCur) / 1000).toFixed(2).replace(".", ",") + " m";
+}
 /* value of one group field over the groups in use: "X" or "Logo: X; Tekst: Y" */
 function gval(k) { const G = usedGroups(); const vals = G.map(g => (g[k] || "").trim()); if (!vals.some(Boolean)) return ""; if (G.length < 2 || vals.every(v => v === vals[0])) return vals[0]; return G.map((g, i) => `${g.name}: ${vals[i] || "–"}`).join("; "); }
 function orderLines() {
@@ -59,7 +69,7 @@ function orderLines() {
   for (const g of usedGroups()) {
     const pre = S.groups.length > 1 ? g.name + " – " : "";
     const face = j([g.faceMat, g.faceColor, g.faceFilm && "kile " + g.faceFilm]); if (face) L.push(pre + "Esipind: " + face);
-    L.push(pre + `Külg: ${j(["sügavus " + sideSpec(g).text + " mm", g.sideColor])}`);
+    L.push(pre + `Külg: ${j(["sügavus " + sideSpec(g).text + " mm", g.sideColor, (g.screws || screwQty(g)) && ["kruvid", g.screws, screwQty(g)].filter(Boolean).join(" ")])}`);
     const back = j([g.backMat, g.backColor]); if (back) L.push(pre + "Tagapind: " + back);
   }
   { const fr = j([frameProfileName(), o.frameMat, o.frameColor]); if (fr) L.push("Raam: " + fr); }
@@ -75,6 +85,8 @@ for (const k of GROUP_KEYS) $("g_" + k).addEventListener(k === "profType" ? "cha
   /* type or side thickness of a part decides its contour offsets */
   if (k === "profType" || k === "sideMat") { syncProfType(); clearTimeout(profTmr); profTmr = setTimeout(() => { if (S.letters.length) { computeProfile(); recompute(); } }, 300); } });
 $("g_name").addEventListener("input", e => { S.groups[S.gCur].name = e.target.value; document.querySelectorAll(".pname").forEach(x => { x.textContent = S.groups.length > 1 ? "· " + e.target.value : ""; }); const o = $("g_sel").options[S.gCur]; if (o) o.textContent = e.target.value || "Osa " + (S.gCur + 1); });
+$("g_screwQty").addEventListener("input", e => { S.groups[S.gCur].screwQty = e.target.value.trim(); fillScrewQty(); });
+$("g_screwQty").addEventListener("blur", () => fillScrewQty());
 $("g_sel").addEventListener("change", e => { S.gCur = +e.target.value; fillGroups(); draw(); });
 $("g_add").addEventListener("click", () => { S.groups.push(emptyGroup("Osa " + (S.groups.length + 1))); S.gCur = S.groups.length - 1; fillGroups(); $("g_name").focus(); $("g_name").select(); setPick(true); });
 $("g_del").addEventListener("click", () => { if (S.groups.length < 2) return; const k = S.gCur; S.groups.splice(k, 1); for (const L of S.letters) { const g = L.group || 0; L.group = g === k ? 0 : g > k ? g - 1 : g; } S.gCur = 0; fillGroups(); if (S.letters.length) { computeProfile(); recompute(); } });

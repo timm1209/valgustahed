@@ -1,4 +1,4 @@
-# Valgustähed v2.21
+# Valgustähed v2.22
 
 DXF tähekontuuridest raam, veeavad, kinnitusavad ja LED-id. Sama rakendus mis DAG Tellimuste lehe Valgustähtede vahelehel, sama kujundusega, aga eraldi ja ilma tellimuste osata.
 

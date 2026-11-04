@@ -160,7 +160,8 @@ function writeDXF(d) {
       const yl = g.edge + g.side * (g.off || off), x0 = g.pts[0], p1y = g.edge, p1e = g.e1 != null ? g.e1 : g.edge, p2e = g.e2;
       g.pts.slice(1).forEach((x, ix, arr) => {
         const sg = x >= x0 ? 1 : -1, below = g.vert && ix < arr.length - 1; /* stacked vertical values: all but the last text go under their line */
-        nDim++; const name = "*D" + nDim, br = nh(), p2y = p2e != null ? p2e : g.edge - g.side * (exo + 2);
+        const pe = Array.isArray(g.e2s) && g.e2s[ix + 1] != null ? g.e2s[ix + 1] : p2e;
+        nDim++; const name = "*D" + nDim, br = nh(), p2y = pe != null ? pe : g.edge - g.side * (exo + 2);
         const rec = []; W(rec, 0, "BLOCK_RECORD"); W(rec, 5, br); W(rec, 330, MAIN_BRH); W(rec, 100, "AcDbSymbolTableRecord"); W(rec, 100, "AcDbBlockTableRecord"); W(rec, 2, name); W(rec, 340, 0); brec.push(...rec);
         const B = { o: [], owner: br, bb: true }; const bo = B.o;
         W(bo, 0, "BLOCK"); W(bo, 5, nh()); W(bo, 330, br); W(bo, 100, "AcDbEntity"); W(bo, 8, "0"); W(bo, 100, "AcDbBlockBegin"); W(bo, 2, name); W(bo, 70, 1); W(bo, 10, "0.0"); W(bo, 20, "0.0"); W(bo, 30, "0.0"); W(bo, 3, name); W(bo, 1, "");

@@ -22,11 +22,15 @@ function frameDXF() {
     const top = bars[0], bot = bars[bars.length - 1];
     const on = (b, s) => s.x > b.x0 + 0.5 && s.x < b.x1 - 0.5 && (Math.abs(s.lo - (b.y + b.h / 2)) < 0.5 || Math.abs(s.hi - (b.y - b.h / 2)) < 0.5);
     const lefts = b => [...new Set(segs.filter(s => on(b, s)).map(s => Math.round((s.x - s.w / 2) * 1000) / 1000))].filter(x => x > b.x0 + 0.5).sort((p, q) => p - q);
-    const tl = lefts(top); if (tl.length) groups.push({ side: 1, edge: top.y + top.h / 2, e2: top.y + top.h / 2, pts: [top.x0, ...tl], off: 5 * DS });
-    groups.push({ side: 1, edge: top.y + top.h / 2, e2: top.y + top.h / 2, pts: [top.x0, top.x1], off: tl.length ? 10 * DS : 5 * DS });
+    /* one row per bar, every value from the bar's start, the bar's end last; the top row sits above posts that stick up over the bar,
+       and their extension lines start at the post's end */
+    const uniq = a => [...new Set(a.map(x => Math.round(x * 1000) / 1000))].sort((p, q) => p - q);
+    const tEdge = top.y + top.h / 2, upAt = x => { const s = segs.find(q => Math.abs(q.x - q.w / 2 - x) < 0.6 && q.lo >= tEdge - 0.5 && q.hi > tEdge + 0.5); return s ? s.hi : tEdge; };
+    const tPts = uniq([top.x0, ...lefts(top), top.x1]), tUp = Math.max(tEdge, ...tPts.map(upAt));
+    groups.push({ side: 1, edge: tEdge, e2: tEdge, e2s: tPts.map(upAt), pts: tPts, off: (tUp - tEdge) + 5 * DS });
     if (bot !== top) {
-      const bl = lefts(bot).slice(0, 1); if (bl.length) groups.push({ side: -1, edge: bot.y - bot.h / 2, e2: bot.y - bot.h / 2, pts: [bot.x0, ...bl], off: 5 * DS });
-      groups.push({ side: -1, edge: bot.y - bot.h / 2, e2: bot.y - bot.h / 2, pts: [bot.x0, bot.x1], off: bl.length ? 10 * DS : 5 * DS });
+      const bEdge = bot.y - bot.h / 2, bPts = uniq([bot.x0, ...lefts(bot).slice(0, 1), bot.x1]);
+      groups.push({ side: -1, edge: bEdge, e2: bEdge, pts: bPts, off: 5 * DS });
       groups.push({ vert: true, side: -1, edge: gx, e1: bot.x0, e2: top.x0, pts: [bot.y - bot.h / 2, top.y + top.h / 2], off: 4 * DS });
     }
     for (const s of segs) { const L = Math.round(s.hi - s.lo); if (seenLen.has(L)) continue; seenLen.add(L); const atStart = s.x - s.w / 2 - gx < 8 * DS, e = atStart ? s.x + s.w / 2 : s.x - s.w / 2; /* a post at the frame start gets its length on the right, clear of the height column */

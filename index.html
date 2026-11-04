@@ -250,7 +250,7 @@ table.types input{padding:4px 5px}
         <button role="menuitem" id="miOut">Logi välja</button>
       </div>
     </div>
-    <div class="ver" id="appVer" title="Rakenduse versioon">v2.28 · 04.11.2026</div>
+    <div class="ver" id="appVer" title="Rakenduse versioon">v2.29 · 04.11.2026</div>
   </header>
 
   <main class="stage" id="stage">
@@ -540,7 +540,7 @@ table.types input{padding:4px 5px}
     </div></form>
     <form class="dbForm" id="gSetupForm" autocomplete="off"><div id="gSetup" hidden>
       <p class="gNote">Andmebaas on seadistamata. Sisesta ettevõtte Supabase'i projekti andmed (Project Settings → API) või pane need faili <code>js/andmebaas-config.js</code>.</p>
-      <label>Project URL<input type="url" id="gUrl" placeholder="https://xxxx.supabase.co" spellcheck="false" required></label>
+      <label>Project URL<input type="text" id="gUrl" placeholder="https://xxxx.supabase.co" spellcheck="false" inputmode="url" required></label>
       <label>anon public võti<input type="text" id="gKey" placeholder="eyJ… või sb_publishable_…" spellcheck="false" required></label>
       <button class="btn" type="submit">Salvesta</button>
     </div></form>

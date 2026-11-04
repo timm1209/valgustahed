@@ -106,6 +106,11 @@ function nfDwgMerge(dxfText, shift, box) {
   /* what the export changes is written anew, everything else stays the template's own record */
   tpl.modelSpace.dwgDirty = true;
   for (const t of [tpl.layers, tpl.lineTypes, tpl.textStyles, tpl.dimensionStyles, tpl.blockRecords, tpl.appIds]) if (t) t.dwgDirty = true;
+  /* the app names its dimension blocks *D1, *D2 …; a template may already have the same names (2.dwt has *D9, *D85…),
+     and a clone would then be tied to the template's block: give every app block a name the template does not use */
+  const used = new Set([...tpl.blockRecords].map(b => String(b.name).toUpperCase()));
+  let dn = Math.max(0, ...[...used].map(nm => +((nm.match(/^\*D(\d+)$/) || [])[1] || 0))) + 1;
+  for (const e of ours.modelSpace.entities) if (e.block && /^\*D/i.test(e.block.name || "")) { while (used.has("*D" + dn)) dn++; e.block.name = "*D" + dn; used.add("*D" + dn); dn++; }
   const d = new A.XYZ(shift[0], shift[1], 0); let n = 0;
   for (const e of [...ours.modelSpace.entities]) {
     const c = e.clone();

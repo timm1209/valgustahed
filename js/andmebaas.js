@@ -7,9 +7,11 @@ const DB_TABLE = "tood";
 const DB_LIST_COLS = "id,nimi,tellimus,kuju_arv,loodud,muudetud,loonud,muutnud,loonud_nimi,muutnud_nimi";
 
 /* ---------- ühendus ---------- */
+/* "https://xxxx.supabase.co/rest/v1/" (as the Data API page shows it) -> "https://xxxx.supabase.co" */
+function dbUrl(u) { const s = String(u || "").trim(); try { const x = new URL(s); return x.protocol === "https:" ? x.origin : ""; } catch (e) { return ""; } }
 function dbCfg() {
-  if (DB_CONFIG.url && DB_CONFIG.anonKey) { DB.cfgSrc = "file"; return { url: DB_CONFIG.url.trim(), anonKey: DB_CONFIG.anonKey.trim() }; }
-  try { const c = JSON.parse(localStorage.getItem("valg_db_cfg") || "null"); if (c && c.url && c.anonKey) { DB.cfgSrc = "local"; return c; } } catch (e) {}
+  if (DB_CONFIG.url && DB_CONFIG.anonKey) { DB.cfgSrc = "file"; return { url: dbUrl(DB_CONFIG.url), anonKey: DB_CONFIG.anonKey.trim() }; }
+  try { const c = JSON.parse(localStorage.getItem("valg_db_cfg") || "null"); if (c && c.url && c.anonKey) { DB.cfgSrc = "local"; return { url: dbUrl(c.url), anonKey: String(c.anonKey).trim() }; } } catch (e) {}
   DB.cfgSrc = ""; return null;
 }
 function dbClient() {

@@ -132,8 +132,8 @@ function genPass() { const a = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23
 
 /* ---------- käivitus ---------- */
 $("gSetupForm").addEventListener("submit", e => {
-  e.preventDefault(); const url = $("gUrl").value.trim().replace(/\/+$/, ""), anonKey = $("gKey").value.trim();
-  if (!/^https:\/\/[^\s/]+$/.test(url) || anonKey.length < 20) { gateMsg("Kontrolli aadressi (https://…supabase.co) ja võtit.", true); return; }
+  e.preventDefault(); const url = dbUrl($("gUrl").value), anonKey = $("gKey").value.trim();
+  if (!url || anonKey.length < 20) { gateMsg("Kontrolli aadressi (https://…supabase.co) ja võtit.", true); return; }
   try { localStorage.setItem("valg_db_cfg", JSON.stringify({ url, anonKey })); } catch (er) { gateMsg("Brauser ei luba seadeid salvestada.", true); return; }
   DB.client = null; auInit();
 });

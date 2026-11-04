@@ -160,9 +160,9 @@ async function saveNf(base, parts, boxes) {
       r = nfDwgMerge(parts, boxes);
       const cf = new AcadTs.DwgWriterConfiguration(); cf.writeDynamicBlockData = true;
       bytes = AcadTs.DwgWriter.writeToBuffer(r.doc, cf);
-    } catch (e) { console.error(e); toast("Malliga ühendamine ebaõnnestus: " + (e.message || e)); return; }
+    } catch (e) { console.error(e); toast("Malliga ühendamine ebaõnnestus: " + (e.message || e)); return false; }
     await saveFile(base + ".dwg", bytes);
-    return;
+    return true;
   }
   let out;
   try {
@@ -170,9 +170,10 @@ async function saveNf(base, parts, boxes) {
     let t = text;
     parts.forEach((p, i) => { t = Tpl.merge(t, p.txt, { props: tplProps(), date: S.order.date, shift: p.shift, fit: i === 0 }).text; });
     out = nfEncode(t, utf8);
-  } catch (e) { console.error(e); toast("Malliga ühendamine ebaõnnestus: " + (e.message || e)); return; }
+  } catch (e) { console.error(e); toast("Malliga ühendamine ebaõnnestus: " + (e.message || e)); return false; }
   await saveFile(base + ".dxf", out);
   if ($("s_fileFmt").value === "dwg") setTimeout(() => toast("DXF-malliga joonis on DXF. DWG saamiseks kasuta DWT/DWG-malli."), 3400);
+  return true;
 }
 
 /* frame drawing beside the sign: its left edge one sign length to the right of the sign's right edge, same height as the frame in the sign */

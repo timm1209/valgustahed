@@ -56,6 +56,7 @@ function auUI() {
   $("userRole").textContent = me ? ROLLI_NIMI[me.roll] || "" : "";
   $("miAdmin").hidden = !(me && me.roll === "admin");
   $("btnDb").hidden = !me;
+  if (me && typeof autoDrafter === "function") autoDrafter();
   if (typeof dbUI === "function") dbUI();
 }
 function menuToggle(on) { const m = $("userMenu"); m.hidden = on === undefined ? !m.hidden : !on; $("btnUser").setAttribute("aria-expanded", String(!m.hidden)); }

@@ -18,7 +18,10 @@ async function exportDXF() {
     const x1 = Math.max(...S.letters.map(L => L.bb.x1), ...(S.bars || []).map(b => b.x1)), wT = x1 - x0, m = Math.max(40, 0.08 * Math.max(wT, hT));
     const parts = [{ txt, shift: [-x0, -y0] }], boxes = { main: [-m, -m - Math.max(30, hT * 0.12), wT + m, hT + m], frame: null };
     const fr = nfFramePart(x0, y0, wT); if (fr) { parts.push(fr.part); boxes.frame = fr.box; }
-    await saveNf(base + "_LED", parts, boxes); return;
+    const ok = await saveNf(base + "_LED", parts, boxes);
+    /* exporting onto the template also saves the work to the database (updates it when it was opened from there) */
+    if (ok && typeof dbReady === "function" && dbReady()) setTimeout(() => dbSave(false), 600);
+    return;
   }
   await saveCad(base + "_LED", txt);
 }

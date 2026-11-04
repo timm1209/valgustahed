@@ -31,7 +31,9 @@ function paintChips() {
     el.title = unknown ? "Värvi ei tuntud ära, 3D-vaates on vaikevärv. Kirjuta RAL-kood (nt RAL 9005) või #RRGGBB." : (ralName(v) || "");
   }
 }
-function fillOrder() { for (const [id, k] of ORDER_FIELDS) $(id).value = S.order[k] || ""; fillGroups(); }
+/* drafter: an empty field takes the signed-in user's name; the name is stored in the work, so a work opened later keeps who drew it */
+function autoDrafter() { const nm = typeof DB !== "undefined" && DB.me && DB.me.aktiivne ? String(DB.me.nimi || "").trim() : ""; if (!nm || String(S.order.drafter || "").trim()) return; S.order.drafter = nm; if ($("o_drafter") && document.activeElement !== $("o_drafter")) $("o_drafter").value = nm; }
+function fillOrder() { autoDrafter(); for (const [id, k] of ORDER_FIELDS) $(id).value = S.order[k] || ""; fillGroups(); }
 function fillGroups() {
   if (S.gCur >= S.groups.length) S.gCur = 0;
   $("g_sel").innerHTML = S.groups.map((g, i) => `<option value="${i}">${esc(g.name || "Osa " + (i + 1))}</option>`).join(""); $("g_sel").value = S.gCur;
@@ -91,6 +93,7 @@ function orderLines() {
   return L;
 }
 $("dl_ral").innerHTML = Object.entries(RAL).map(([k, v]) => `<option value="RAL ${k}">${v[0]}</option>`).join("");
+$("o_drafter").addEventListener("blur", () => autoDrafter());
 for (const [id, k] of ORDER_FIELDS) $(id).addEventListener("input", e => { S.order[k] = e.target.value; paintChips(); if (/Color$/.test(k)) schedule3D(); });
 /* Tellimuse info subsections (Esipind, Külg, …): folded by default, the choice is remembered */
 document.querySelectorAll(".subsec").forEach(sec => { const k = "valg_sub_" + sec.dataset.sub; try { if (localStorage.getItem(k) === "1") sec.classList.remove("closed"); } catch (e) {}

@@ -12,18 +12,17 @@ async function exportDXF() {
   const byT = cfg.types.map((t, i) => `${t.name}: ${S.leds.filter(l => l.t === i).length} tk`).filter(s => !/: 0 tk/.test(s));
   const txt = Core.writeDXF({ cables: S.cables && S.cables.length ? S.cables : null, cableD: cfg.cableD || 8, layerNames: exportLayerNames(), drainMode: cfg.drainMode, only: exportLayers(), curveMode: cfg.curveMode || "lines", chordTol: cfg.chordTol || 0.01, letters: S.letters, chains: S.chains, leds: S.leds, holes: S.holes, bars: S.bars, posts: S.posts, mounts: S.mounts, mountD: cfg.mountD, types: cfg.types, holeD: cfg.holeD, prof: S.prof, wire: S.wire ? S.wire.order : null,
     info: [`LED kokku ${S.leds.length} (${byT.join(", ")})`, ...(S.holes.length ? [`Veeauke ${S.holes.length} x D${cfg.holeD}`] : cfg.drainMode === "none" ? ["Veeavad: ei ole"] : []), `Kinnitusavasid ${(S.mounts || []).length} x D${cfg.mountD}`, ...(S.cables && S.cables.length ? [`Kaabliavasid ${S.cables.length} x D${cfg.cableD || 8}`] : []), `Raamiprofiil ${barPieces()} tk, ${(S.bars.reduce((s, b) => s + b.x1 - b.x0, 0) / 1000).toFixed(2)} m`, `Vertikaalpulgad ${(S.posts || []).length} tk, ${(postLen() / 1000).toFixed(2)} m`, `Kate ${pct(S.rep.coverage)}`, ...orderLines()], infoX: x0, infoY: y0 - Math.max(30, hT * 0.12), infoH: Math.max(8, hT * 0.035) });
-  const base = (S.name || "paigutus").replace(/\.dxf$/i, "").replace(/[^\wäöüõÄÖÜÕšžŠŽ.-]+/g, "_").replace(/^_+|_+$/g, "") || "paigutus";
-  const dxfName = base + "_LED.dxf"; const bytes = new TextEncoder().encode(txt);
+  const base = baseName();
   if (nfActive()) {
     const x1 = Math.max(...S.letters.map(L => L.bb.x1), ...(S.bars || []).map(b => b.x1)), wT = x1 - x0, m = Math.max(40, 0.08 * Math.max(wT, hT));
     const parts = [{ txt, shift: [-x0, -y0] }], boxes = { main: [-m, -m - Math.max(30, hT * 0.12), wT + m, hT + m], frame: null };
     const fr = nfFramePart(x0, y0, wT); if (fr) { parts.push(fr.part); boxes.frame = fr.box; }
-    const ok = await saveNf(base + "_LED", parts, boxes);
+    const ok = await saveNf(base, parts, boxes);
     /* exporting onto the template also saves the work to the database (updates it when it was opened from there) */
     if (ok && typeof dbReady === "function" && dbReady()) setTimeout(() => dbSave(false), 600);
     return;
   }
-  await saveCad(base + "_LED", txt);
+  await saveCad(base, txt);
 }
 /* AutoCAD erases dimensions with text line spacing factor 0 and expects DIMMZF/DIMALTMZF 100 (acad-ts defaults are 0) */
 function fixDwgDims(doc) {
@@ -80,7 +79,7 @@ $("btnExportSide").addEventListener("click", async () => {
   if (!S.prof || !S.prof.length || !S.prof[0]) { toast("Külje kontuur puudub."); return; }
   const loops = S.prof.flatMap(p => p.side || []); if (!loops.length) { toast("Külje kontuur puudub."); return; }
   /* one file per letter depth ("0,7x60"): parts with the same depth share a file; name = original file name + thickness x depth */
-  const raw = (S.name || "kulg").replace(/\.dxf$/i, "").replace(/[\\/:*?"<>|]+/g, "_").trim() || "kulg";
+  const raw = baseName();
   const by = new Map(); S.prof.forEach((p, i) => { if (!p || !p.side) return; const t = sideSpec(grpOf(i)).text; if (!by.has(t)) by.set(t, []); by.get(t).push(...p.side); });
   for (const [t, lps] of by) await saveCad(`${raw} ${t}mm`, Core.writeSplineDXF(lps, "KYLG"), "AC1015"); /* the bending machine reads AutoCAD 2000 */
   if (by.size > 1) toast(`Külg eksporditi ${by.size} failina (iga tähe sügavus eraldi).`);

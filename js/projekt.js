@@ -33,4 +33,5 @@ function openProject(text, fname) {
   computeProfile(); recompute(); fit();
   toast("Projekt avatud: " + (d.name || fname));
 }
-function baseName() { return (S.name || "paigutus").replace(/\.(dxf|dwg)$/i, "").replace(/[^\wäöüõÄÖÜÕšžŠŽ.-]+/g, "_").replace(/^_+|_+$/g, "") || "paigutus"; }
+/* export file name = the source file's own name without its extension; only characters Windows forbids in file names are dropped */
+function baseName() { return String(S.name || "").replace(/\.ledprojekt\.json$/i, "").replace(/\.(dxf|dwg|dwt|json)$/i, "").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim() || "paigutus"; }

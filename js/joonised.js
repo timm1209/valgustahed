@@ -6,7 +6,7 @@ async function exportFrame() {
   const useTpl = tplActive() && await tplEnsure();
   const { txt, origin } = frameDXF();
   if (useTpl) { await saveTpl(tplFileName(" raam"), txt, origin); return; }
-  await saveCad(baseName() + "_RAAM", txt);
+  await saveCad(baseName() + " raam", txt);
 }
 /* the frame workshop drawing as DXF text (+ its lower-left corner for the template) */
 function frameDXF() {
@@ -107,7 +107,7 @@ async function exportSheet() {
   const sh = sheetDXF({ useTpl });
   if (useTpl) { await saveTpl(tplFileName(""), sh.txt, sh.origin); return; }
   const no = (S.order.orderNo || "").trim();
-  await saveCad(baseName() + (no ? "_PO" + no : "") + "_TOOTMINE", sh.txt);
+  await saveCad(baseName() + (no ? " PO" + no : "") + " tootmine", sh.txt);
 }
 /* the Üldjoonis sheet as DXF text + its paper mapping (P: paper mm -> model, scale 1:k) */
 function sheetDXF(opt = {}) {
@@ -248,7 +248,7 @@ async function exportDrawingsPdf() {
       drawSheetFrame({ poly: (pts, cl, L) => pen.poly(pts, cl, L), line: pen.line, text: (x, y, h, s, L, rot) => pen.text(x, y, h, s, L, rot), hatch: pen.hatch }, (x, y) => [x, y], 1, "Raamijoonis", titleRows(), k);
     }
     const no = (S.order.orderNo || "").trim();
-    await saveFile(baseName() + (no ? "_PO" + no : "") + "_joonised.pdf", new Uint8Array(doc.output("arraybuffer")));
+    await saveFile(baseName() + (no ? " PO" + no : "") + " joonised.pdf", new Uint8Array(doc.output("arraybuffer")));
   } catch (e) { console.error(e); toast("PDF-i koostamine ebaõnnestus: " + (e.message || e)); }
   finally { sheetTW = oldTW; btn.disabled = false; btn.textContent = lbl; }
 }

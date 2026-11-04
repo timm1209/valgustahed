@@ -71,7 +71,7 @@ async function exportPdf() {
     doc.setDrawColor(...line); doc.line(M, H - M - 4, W - M, H - M - 4);
     doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...mut);
     doc.text("Visualiseering on illustratiivne. Värvitoonid ekraanil ja trükis võivad tegelikust materjalist erineda.", M, H - M + 0.5);
-    const bytes = new Uint8Array(doc.output("arraybuffer")); const name = (S.name || "valgustaht").replace(/\.(dxf|dwg|json)$/i, "").replace(/[^\wäöüõÄÖÜÕšžŠŽ.-]+/g, "_") + "_visualiseering.pdf";
+    const bytes = new Uint8Array(doc.output("arraybuffer")); const name = baseName() + " visualiseering.pdf";
     let dl = null; try { dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) { dl = null; }
     if (dl) { try { await dl.save({ filename: name, data: bytes }); toast("PDF salvestatud: " + name); } catch (e) { if (!(e && e.code === "declined")) toast("Salvestamine ei õnnestunud: " + (e && e.message || "tundmatu viga")); } }
     else { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); toast("PDF salvestatud: " + name); }

@@ -22,7 +22,7 @@ async function tplEnsure(quiet) {
   try { TPL.loading = TPL.loading || tplFetch(); TPL.text = await TPL.loading; return true; }
   catch (e) { TPL.loading = null; console.error(e); if (!quiet) toast("Templati laadimine ebaõnnestus (" + (e.message || e) + "). Kasutan rakenduse oma A3 raami."); return false; }
 }
-function tplFileName(suffix) { const t = ((S.order.title || "").trim() || baseName()).replace(/[\\/:*?"<>|]+/g, "_").trim(); return (t || "joonis") + suffix; }
+function tplFileName(suffix) { const t = ((S.order.title || "").trim() || baseName()).replace(/[\\/:*?"<>|]+/g, " ").trim(); return (t || "joonis") + suffix; }
 /* order and part data -> template custom properties (names as in the template) */
 function tplProps() {
   const o = S.order, G = usedGroups(), multi = G.length > 1, tt = t => ({ p3: "P3", liist: "P6", klaas: "P6" })[t || "liist"] || "";

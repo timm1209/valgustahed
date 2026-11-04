@@ -3,7 +3,7 @@
    Kõik failid jagavad ühist globaalset skoopi; laadimise järjekord on index.html-is. */
 /* ---------- loading ---------- */
 function loadLoops(loops, name, extra) {
-  const letters = Core.makeLetters(loops);
+  const letters = Core.makeLetters(loops); S.dbId = null; S.dbName = null; S.dbSaved = null; /* a new drawing is not the work opened from the database */
   S.letters = letters; S.name = name; S.openCount = extra ? extra.open : 0; S.dupes = extra ? extra.dupes : 0; S.sel = null; S.selLetter = null; undo.length = 0;
   S.chains = letters.map(L => { try { return Core.skeleton(L); } catch (e) { console.error(e); return []; } });
   computeSamples(); computeProfile();

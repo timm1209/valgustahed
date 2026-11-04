@@ -39,6 +39,7 @@ function recompute() {
   S.rep = Core.report(S.letters, S.leds, cfg.types, cfg, S.samp, S.chains); S.spots = S.rep.spots; S.wire = Core.wireOrder(S.letters, S.leds);
   renderVal(); renderRep(); renderSummary(); draw(); schedule3D();
   if (typeof fillScrewQty === "function") { fillScrewQty(); fillBackMat(); }
+  if (typeof dbUI === "function") dbUI();
 }
 let tmr = null; function onCfgChange(kind) { saveCfg(); clearTimeout(tmr); tmr = setTimeout(() => { if (kind === "source") { reloadSource(); return; } if (kind === "samples") computeSamples(); if (S.manual) { $("btnAuto").classList.add("pulse"); recompute(); toast("Seaded muutusid. Vajuta „Paiguta automaatselt“, et käsitsi muudatused üle kirjutada."); } else autoPlace(); }, 250); }
 

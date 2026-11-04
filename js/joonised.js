@@ -36,7 +36,8 @@ function frameDXF() {
   const info = [frameMaterialLine(), ...list.map(([len, n]) => `L-${len}mm, ${n}tk`)];
   const txt = Core.writeDXF({ only: new Set(["RAAM", "MOODUD", "INFO"]), letters: [], chains: [], leds: [], holes: [], mounts: [], bars: outBars, posts: outPosts, prof: null, types: cfg.types, dimGroups: groups, dimInt: true,
     info, infoX: xmax + 25 * DS, infoY: ytop - 3 * DS, infoH: 3 * DS });
-  return { txt, origin: [Math.min(...outBars.map(b => b.x0)), Math.min(...outBars.map(b => b.y - b.h / 2))] };
+  const ylo = Math.min(...outBars.map(b => b.y - b.h / 2)), infoW = Math.max(...info.map(s => String(s).length)) * 3 * DS * 0.62;
+  return { txt, origin: [Math.min(...outBars.map(b => b.x0)), ylo], box: [Math.min(...outBars.map(b => b.x0)) - 6 * DS, ylo - 12 * DS, xmax + 25 * DS + infoW, ytop + 12 * DS] };
 }
 $("btnExportFrame").addEventListener("click", exportFrame);
 /* ===================== PRODUCTION DRAWING (Üldjoonis) =====================

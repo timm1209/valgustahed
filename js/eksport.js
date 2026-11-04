@@ -5,7 +5,7 @@ $("btnExport").addEventListener("click", exportDXF);
 
 const LAYER_MAP = [["ly_cont", "KONTUUR"], ["ly_skel", "KESKJOON"], ["ly_soor", "SOOR"], ["ly_led", "LED"], ["ly_hole", "VEEAUK"], ["ly_mount", "KINNITUS"], ["ly_frame", "RAAM"], ["ly_base", "POHI"], ["ly_groove", "SOON"], ["ly_mdim", "MOODUD"], ["ly_wire", "JUHE"]];
 function exportLayers() { const l = new Set(["INFO"]); for (const [id, n] of LAYER_MAP) if ($(id).checked && !(n === "MOODUD" && !$("ly_mount").checked) ) l.add(n); return l; }
-function updateExpNote() { if (!$("expNote")) return; const l = [...exportLayers()].filter(n => n !== "INFO").map(n => Core.EXPORT_LAYER_NAMES[n] || n); $("expNote").textContent = "Ekspordin kihid: " + l.join(", ") + ". Kihtide menüüs väljalülitatud kihte faili ei lähe. Algset (töötlemata) kontuuri ei ekspordita. Avade mõõdud on AutoCAD-i mõõdud (DIMENSION, stiil AVAD = Raam3 seaded). " + ($("s_fileFmt").value === "dwg" ? "Fail on DWG (AutoCAD 2018)." : "Fail on DXF R2000.") + (typeof nfActive === "function" && nfActive() ? " Joonis lisatakse malli " + NF.name + " mudelruumi (tähtede alumine vasak nurk punkti 0;0); mall jääb muutmata, tellimuse info läheb DWGPROPS-i väljadesse ja lehtede vaateaknad sätitakse joonisele. Fail tuleb " + (nfIsDxf(NF.name) ? "DXF-ina." : "DWG-na (malli versioon).") : "") + " Külg läheb eraldi faili splainidena (kiht KYLG). Ühik mm."; }
+function updateExpNote() { if (!$("expNote")) return; const l = [...exportLayers()].filter(n => n !== "INFO").map(n => Core.EXPORT_LAYER_NAMES[n] || n); $("expNote").textContent = "Ekspordin kihid: " + l.join(", ") + ". Kihtide menüüs väljalülitatud kihte faili ei lähe. Algset (töötlemata) kontuuri ei ekspordita. Avade mõõdud on AutoCAD-i mõõdud (DIMENSION, stiil AVAD = Raam3 seaded). " + ($("s_fileFmt").value === "dwg" ? "Fail on DWG (AutoCAD 2018)." : "Fail on DXF R2000.") + (typeof nfActive === "function" && nfActive() ? " Joonis lisatakse malli " + NF.name + " mudelruumi (tähtede alumine vasak nurk punkti 0;0)" + ($("s_nfFrame") && $("s_nfFrame").checked ? ", raamijoonis sellest paremale (vahe = reklaami pikkus)" : "") + "; mall jääb muutmata, tellimuse info läheb DWGPROPS-i väljadesse ja lehtede vaateaknad sätitakse joonisele. Fail tuleb " + (nfIsDxf(NF.name) ? "DXF-ina." : "DWG-na (malli versioon).") : "") + " Külg läheb eraldi faili splainidena (kiht KYLG). Ühik mm."; }
 async function exportDXF() {
   if (!S.letters.length) { toast("Pole midagi eksportida."); return; }
   const x0 = Math.min(...S.letters.map(L => L.bb.x0)), y0 = Math.min(...S.letters.map(L => L.bb.y0)); const hT = Math.max(...S.letters.map(L => L.bb.y1)) - y0;
@@ -14,7 +14,12 @@ async function exportDXF() {
     info: [`LED kokku ${S.leds.length} (${byT.join(", ")})`, ...(S.holes.length ? [`Veeauke ${S.holes.length} x D${cfg.holeD}`] : cfg.drainMode === "none" ? ["Veeavad: ei ole"] : []), `Kinnitusavasid ${(S.mounts || []).length} x D${cfg.mountD}`, ...(S.cables && S.cables.length ? [`Kaabliavasid ${S.cables.length} x D${cfg.cableD || 8}`] : []), `Raamiprofiil ${barPieces()} tk, ${(S.bars.reduce((s, b) => s + b.x1 - b.x0, 0) / 1000).toFixed(2)} m`, `Vertikaalpulgad ${(S.posts || []).length} tk, ${(postLen() / 1000).toFixed(2)} m`, `Kate ${pct(S.rep.coverage)}`, ...orderLines()], infoX: x0, infoY: y0 - Math.max(30, hT * 0.12), infoH: Math.max(8, hT * 0.035) });
   const base = (S.name || "paigutus").replace(/\.dxf$/i, "").replace(/[^\wäöüõÄÖÜÕšžŠŽ.-]+/g, "_").replace(/^_+|_+$/g, "") || "paigutus";
   const dxfName = base + "_LED.dxf"; const bytes = new TextEncoder().encode(txt);
-  if (nfActive()) { const x1 = Math.max(...S.letters.map(L => L.bb.x1)), wT = x1 - x0, m = Math.max(40, 0.08 * Math.max(wT, hT)); await saveNf(base + "_LED", txt, [-x0, -y0], [-m, -m - Math.max(30, hT * 0.12), wT + m, hT + m]); return; }
+  if (nfActive()) {
+    const x1 = Math.max(...S.letters.map(L => L.bb.x1), ...(S.bars || []).map(b => b.x1)), wT = x1 - x0, m = Math.max(40, 0.08 * Math.max(wT, hT));
+    const parts = [{ txt, shift: [-x0, -y0] }], boxes = { main: [-m, -m - Math.max(30, hT * 0.12), wT + m, hT + m], frame: null };
+    const fr = nfFramePart(x0, y0, wT); if (fr) { parts.push(fr.part); boxes.frame = fr.box; }
+    await saveNf(base + "_LED", parts, boxes); return;
+  }
   await saveCad(base + "_LED", txt);
 }
 /* AutoCAD erases dimensions with text line spacing factor 0 and expects DIMMZF/DIMALTMZF 100 (acad-ts defaults are 0) */

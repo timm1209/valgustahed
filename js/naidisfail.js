@@ -87,7 +87,7 @@ function nfUI() {
   $("nfStat").classList.toggle("on", has); $("nfStat").classList.remove("warn");
   $("btnNfIn").textContent = has ? "Vaheta mall…" : "Laadi mall…";
   $("btnNfDel").hidden = !has;
-  $("nfUseRow").hidden = !has;
+  $("nfUseRow").hidden = !has; $("nfFrameRow").hidden = !has;
   if (window.__fmtLabels) window.__fmtLabels();
   updateExpNote();
 }
@@ -98,61 +98,66 @@ function nfUI() {
    ja iga lehe mudelivaateaken sätitakse joonisele standardmõõtkavas. */
 const NF_SCALES = [1, 2, 2.5, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 750, 1000];
 function nfOrderDate() { const m = String(S.order.date || "").match(/^\s*(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})\s*$/); return m ? new Date(+m[3], +m[2] - 1, +m[1], 12, 0, 0) : new Date(); }
-function nfDwgMerge(dxfText, shift, box) {
+/* parts: [{ txt, shift }] — the LED drawing and, when asked, the frame drawing beside it; boxes: { main, frame } in template coordinates */
+function nfDwgMerge(parts, boxes) {
   const A = window.AcadTs;
   const tpl = nfReadDwg(NF.bytes);
-  const ours = A.DxfReader.readFromStream(new TextEncoder().encode(dxfText), () => {});
-  for (const l of ours.layers) if (l.name && l.name.includes("\\U+")) l.name = nfUni(l.name);
   /* what the export changes is written anew, everything else stays the template's own record */
   tpl.modelSpace.dwgDirty = true;
   for (const t of [tpl.layers, tpl.lineTypes, tpl.textStyles, tpl.dimensionStyles, tpl.blockRecords, tpl.appIds]) if (t) t.dwgDirty = true;
-  /* the app names its dimension blocks *D1, *D2 …; a template may already have the same names (2.dwt has *D9, *D85…),
-     and a clone would then be tied to the template's block: give every app block a name the template does not use */
+  /* the app names its dimension blocks *D1, *D2 … in every DXF it writes; a template may already have the same names (2.dwt has *D9, *D85…),
+     and a clone would then be tied to that block: give every app block a name nothing else uses */
   const used = new Set([...tpl.blockRecords].map(b => String(b.name).toUpperCase()));
   let dn = Math.max(0, ...[...used].map(nm => +((nm.match(/^\*D(\d+)$/) || [])[1] || 0))) + 1;
-  for (const e of ours.modelSpace.entities) if (e.block && /^\*D/i.test(e.block.name || "")) { while (used.has("*D" + dn)) dn++; e.block.name = "*D" + dn; used.add("*D" + dn); dn++; }
-  const d = new A.XYZ(shift[0], shift[1], 0); let n = 0;
-  for (const e of [...ours.modelSpace.entities]) {
-    const c = e.clone();
-    if (typeof c.value === "string" && c.value.includes("\\U+")) c.value = nfUni(c.value);
-    c.applyTranslation(d);
-    /* a dimension's block is inserted at its insertion point, which applyTranslation already moved: the block content stays as it is */
-    if (c.block) { /* the block's owned-handle list still names the app DXF's handles: let the writer use its real entities */
-      if (Array.isArray(c.block.ownedObjectHandles)) c.block.ownedObjectHandles.length = 0;
-      if (Array.isArray(c.block.insertHandles)) c.block.insertHandles.length = 0;
+  let n = 0;
+  for (const part of parts) {
+    const ours = A.DxfReader.readFromStream(new TextEncoder().encode(part.txt), () => {});
+    for (const l of ours.layers) if (l.name && l.name.includes("\\U+")) l.name = nfUni(l.name);
+    for (const e of ours.modelSpace.entities) if (e.block && /^\*D/i.test(e.block.name || "")) { while (used.has("*D" + dn)) dn++; e.block.name = "*D" + dn; used.add("*D" + dn); dn++; }
+    const d = new A.XYZ(part.shift[0], part.shift[1], 0);
+    for (const e of [...ours.modelSpace.entities]) {
+      const c = e.clone();
+      if (typeof c.value === "string" && c.value.includes("\\U+")) c.value = nfUni(c.value);
+      c.applyTranslation(d);
+      /* a dimension's block is inserted at its insertion point, which applyTranslation already moved: the block content stays as it is */
+      if (c.block) { /* the block's owned-handle list still names the app DXF's handles: let the writer use its real entities */
+        if (Array.isArray(c.block.ownedObjectHandles)) c.block.ownedObjectHandles.length = 0;
+        if (Array.isArray(c.block.insertHandles)) c.block.insertHandles.length = 0;
+      }
+      tpl.modelSpace.entities.add(c); n++;
     }
-    tpl.modelSpace.entities.add(c); n++;
   }
   fixDwgDims(tpl);
   /* order data -> DWGPROPS (only the names the template already has) */
   const props = tplProps(), P = tpl.summaryInfo && tpl.summaryInfo.properties; let set = 0;
   if (P) for (const k of [...P.keys()]) if (Object.prototype.hasOwnProperty.call(props, k)) { const v = String(props[k] == null ? "" : props[k]).replace(/[\r\n]+/g, " ").trim(); P.set(k, v || " "); set++; }
   const dt = nfOrderDate(); tpl.header.createDateTime = dt; tpl.header.universalCreateDateTime = dt; if (tpl.summaryInfo) tpl.summaryInfo.createdDate = dt;
-  /* layouts: point the model viewport of every sheet at the work */
-  const fitted = [];
-  if (box && box[2] > box[0]) {
-    const W = box[2] - box[0], H = box[3] - box[1], cx = (box[0] + box[2]) / 2, cy = (box[1] + box[3]) / 2;
+  /* layouts: point the model viewport of every sheet at the work; a sheet named like "Raamijoonis" at the frame drawing */
+  const fitted = [], ok = b => b && b[2] > b[0] && b[3] > b[1];
+  if (ok(boxes.main)) {
     const per = [];
     for (const lay of tpl.layouts) {
       if (lay.name === "Model" || !lay.associatedBlock) continue;
       const vps = [...lay.associatedBlock.entities].filter(e => e instanceof A.Viewport && !e.representsPaper && e.width > 1 && e.height > 1);
-      if (vps.length) per.push(vps);
+      if (vps.length) per.push({ name: lay.name, vps });
     }
-    const all = per.flat(), med = a => { const q = [...a].sort((x, y) => x - y); return q.length ? q[q.length >> 1] : 0; };
+    const all = per.flatMap(p => p.vps), med = a => { const q = [...a].sort((x, y) => x - y); return q.length ? q[q.length >> 1] : 0; };
     const mx = med(all.map(v => v.viewCenter.x + v.viewTarget.x)), my = med(all.map(v => v.viewCenter.y + v.viewTarget.y));
-    for (const vps of per) {
+    for (const { name, vps } of per) {
+      const box = ok(boxes.frame) && /raam/i.test(name) ? boxes.frame : boxes.main;
+      const W = box[2] - box[0], H = box[3] - box[1], cx = (box[0] + box[2]) / 2, cy = (box[1] + box[3]) / 2;
       const v = vps.reduce((a, q) => Math.hypot(q.viewCenter.x + q.viewTarget.x - mx, q.viewCenter.y + q.viewTarget.y - my) < Math.hypot(a.viewCenter.x + a.viewTarget.x - mx, a.viewCenter.y + a.viewTarget.y - my) ? q : a);
       const k = NF_SCALES.find(k => W / k <= v.width * 0.88 && H / k <= v.height * 0.88) || Math.ceil(Math.max(W / (v.width * 0.88), H / (v.height * 0.88)));
-      v.viewCenter = new A.XY(cx - v.viewTarget.x, cy - v.viewTarget.y); v.viewHeight = v.height * k; v.dwgDirty = true; fitted.push(k);
+      v.viewCenter = new A.XY(cx - v.viewTarget.x, cy - v.viewTarget.y); v.viewHeight = v.height * k; v.dwgDirty = true; fitted.push(name + " 1:" + k);
     }
   }
   return { doc: tpl, n, set, fitted };
 }
-async function saveNf(base, dxfText, shift, box) {
+async function saveNf(base, parts, boxes) {
   if (nfKind(NF.name) === "dwg") {
     let bytes, r;
     try {
-      r = nfDwgMerge(dxfText, shift, box);
+      r = nfDwgMerge(parts, boxes);
       const cf = new AcadTs.DwgWriterConfiguration(); cf.writeDynamicBlockData = true;
       bytes = AcadTs.DwgWriter.writeToBuffer(r.doc, cf);
     } catch (e) { console.error(e); toast("Malliga ühendamine ebaõnnestus: " + (e.message || e)); return; }
@@ -162,12 +167,22 @@ async function saveNf(base, dxfText, shift, box) {
   let out;
   try {
     const { text, utf8 } = nfText(NF.bytes);
-    const r = Tpl.merge(text, dxfText, { props: tplProps(), date: S.order.date, shift });
-    out = nfEncode(r.text, utf8);
+    let t = text;
+    parts.forEach((p, i) => { t = Tpl.merge(t, p.txt, { props: tplProps(), date: S.order.date, shift: p.shift, fit: i === 0 }).text; });
+    out = nfEncode(t, utf8);
   } catch (e) { console.error(e); toast("Malliga ühendamine ebaõnnestus: " + (e.message || e)); return; }
   await saveFile(base + ".dxf", out);
   if ($("s_fileFmt").value === "dwg") setTimeout(() => toast("DXF-malliga joonis on DXF. DWG saamiseks kasuta DWT/DWG-malli."), 3400);
 }
+
+/* frame drawing beside the sign: its left edge one sign length to the right of the sign's right edge, same height as the frame in the sign */
+function nfFramePart(x0, y0, signW) {
+  if (!$("s_nfFrame").checked || !(S.bars || []).length) return null;
+  const fr = frameDXF(); const fx = 2 * signW;
+  const sx = fx - fr.origin[0], sy = -y0;
+  const b = fr.box; return { part: { txt: fr.txt, shift: [sx, sy] }, box: [b[0] + sx, b[1] + sy, b[2] + sx, b[3] + sy] };
+}
+function nfSaveFrameOpt() { try { localStorage.setItem("valg_nfframe", $("s_nfFrame").checked ? "1" : "0"); } catch (e) {} }
 
 /* ---------- käivitus ---------- */
 $("btnNfIn").addEventListener("click", () => $("nfIn").click());
@@ -175,6 +190,8 @@ $("nfIn").addEventListener("change", e => { const f = e.target.files[0]; e.targe
 $("btnNfDel").addEventListener("click", nfRemove);
 $("s_useNf").addEventListener("change", () => { nfSaveUse(); if (window.__fmtLabels) window.__fmtLabels(); updateExpNote(); });
 try { $("s_useNf").checked = localStorage.getItem("valg_nfuse") !== "0"; } catch (e) { $("s_useNf").checked = true; }
+try { $("s_nfFrame").checked = localStorage.getItem("valg_nfframe") !== "0"; } catch (e) { $("s_nfFrame").checked = true; }
+$("s_nfFrame").addEventListener("change", () => { nfSaveFrameOpt(); updateExpNote(); });
 nfUI();
 nfStore("readonly", st => st.get(NF_KEY)).then(v => {
   if (!v || !v.bytes) return;

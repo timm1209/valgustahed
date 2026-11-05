@@ -65,7 +65,13 @@ cv.addEventListener("pointermove", e => {
   if (drag.k === "pan") { const dx = e.offsetX - drag.px, dy = e.offsetY - drag.py; if (Math.abs(dx) + Math.abs(dy) > 3) drag.click = false; view.cx = drag.cx - dx / view.s; view.cy = drag.cy + dy / view.s; draw(); }
   else if (drag.k === "move") { drag.o.x = x + drag.dx; drag.o.y = y + drag.dy; drag.moved = true; draw(); }
   else if (drag.k === "barEnd") { const b = drag.b, xr = Math.round(x); if (drag.end === 0) b.x0 = Math.min(xr, b.x1 - b.h * 2); else b.x1 = Math.max(xr, b.x0 + b.h * 2); b.fixEnds = true; updateJoints(); refreshMounts(); drag.moved = true; $("hint").textContent = `Profiili pikkus ${Math.round(b.x1 - b.x0)} mm`; draw(); }
-  else if (drag.k === "joint") { moveJoint(drag.b, drag.j, x); refreshMounts(); drag.moved = true; $("hint").textContent = `Jätkuga osad: ${jointParts(drag.b)} mm`; draw(); }
+  else if (drag.k === "joint") {
+    /* magnetic alignment (8 px on screen) with the joints of the other bars and with the posts; Alt = no snapping */
+    let nx = x, best = null; S.guide = null;
+    if (!e.altKey) { const tg = [...(S.bars || []).filter(b => b !== drag.b && b.j).flatMap(b => b.j.xs.map(v => ({ x: v, what: "jätkuga" }))), ...(S.posts || []).map(q => ({ x: q.x, what: "pulgaga" }))];
+      for (const t of tg) { const d = Math.abs(t.x - x) * view.s; if (d < 8 && (!best || d < best.d)) best = { d, x: t.x, what: t.what }; } }
+    if (best) nx = best.x; moveJoint(drag.b, drag.j, nx, !!best); if (best && Math.abs(drag.b.j.xs[drag.j] - best.x) < 1e-6) S.guide = best.x;
+    refreshMounts(); drag.moved = true; $("hint").textContent = `Jätkuga osad: ${jointParts(drag.b)} mm` + (S.guide != null ? ` · joondatud teise ${best.what}` : " · Alt = ilma joondamiseta"); draw(); }
   else if (drag.k === "bar") { drag.b.y = y + drag.dy; refitBar(drag.b); updateJoints(); refreshMounts(); drag.moved = true; draw(); }
   else if (drag.k === "post") {
     let nx = x + drag.dx; S.guide = null;
@@ -79,7 +85,7 @@ const endDrag = e => {
   if (!drag) return; const d = drag; drag = null;
   if (d.k === "move") { if (d.moved) { const li = letterAt(d.o.x, d.o.y); if (li >= 0) d.o.L = li; S.manual = true; recompute(); } else { undo.pop(); draw(); } }
   else if (d.k === "post") { S.guide = null; if (d.moved) { Core.snapBars(S.bars, [d.q]); S.manual = true; recompute(); } else undo.pop(); }
-  else if (d.k === "joint") { if (d.moved) { S.manual = true; recompute(); toast(`Jätkuga osad: ${jointParts(d.b)} mm`); } else undo.pop(); setTool(S.tool); }
+  else if (d.k === "joint") { S.guide = null; if (d.moved) { S.manual = true; recompute(); toast(`Jätkuga osad: ${jointParts(d.b)} mm`); } else undo.pop(); setTool(S.tool); }
   else if (d.k === "bar") { if (d.moved) { S.manual = true; recompute(); } else undo.pop(); }
   else if (d.k === "barEnd") { if (d.moved) { S.manual = true; recompute(); toast(`Profiil ${Math.round(d.b.x1 - d.b.x0)} mm`); } else undo.pop(); }
   else if (d.k === "pan" && d.click && S.gPick) { const li = letterAt(d.x, d.y); if (li >= 0) { S.letters[li].group = S.gCur; fillGroups(); computeProfile(); recompute(); } }

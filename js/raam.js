@@ -62,9 +62,9 @@ function jointAt(px, py) {
   return null;
 }
 const jointParts = b => { const xs = [b.x0, ...b.j.xs, b.x1]; return xs.slice(1).map((x, i) => Math.round(x - xs[i])).join(" + "); };
-function moveJoint(b, k, x) {
+function moveJoint(b, k, x, exact) {
   const xs = b.j.xs.slice(), lo = (k ? xs[k - 1] : b.x0) + JOINT_MIN, hi = (k < xs.length - 1 ? xs[k + 1] : b.x1) - JOINT_MIN;
-  xs[k] = Math.min(Math.max(Math.round(x), lo), hi); b.jm = xs; b.j = { xs, fail: false, man: true };
+  xs[k] = Math.min(Math.max(exact ? x : Math.round(x), lo), hi); b.jm = xs; b.j = { xs, fail: false, man: true };
 }
 function addJoint(b, x) {
   const xs = (b.j ? b.j.xs : []).slice(), cuts = [b.x0, ...xs, b.x1]; x = Math.round(x);

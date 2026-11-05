@@ -6,7 +6,7 @@ function refitBar(b) { if (b.fixEnds) return; /* stretched by hand: keep its end
 function syncBarExt() { $("rowBarExt").hidden = !cfg.barExt; $("jointNote").hidden = !cfg.barExt; $("btnJointAuto").hidden = !(S.bars || []).some(b => b.jm); }
 function refreshMounts() {
   updateDotPosts(); const del = S.mountDel || [];
-  const auto = Core.mountHoles(S.letters, S.bars, cfg).concat(Core.dotHoles(S.posts || [], cfg), typeof railHoles === "function" ? railHoles() : []).filter(m => !del.some(d => Math.abs(d.x - m.x) < 1.5 && Math.abs(d.y - m.y) < 1.5));
+  const auto = Core.mountHoles(S.letters, (S.bars || []).filter(b => b.holes !== false), cfg).concat(Core.dotHoles((S.posts || []).filter(q => q.holes !== false), cfg), typeof railHoles === "function" ? railHoles() : []).filter(m => !del.some(d => Math.abs(d.x - m.x) < 1.5 && Math.abs(d.y - m.y) < 1.5));
   const man = (S.mountAdd || []).map(m => ({ x: m.x, y: m.y, L: letterAt(m.x, m.y), w: 0, man: true }));
   S.mounts = auto.concat(man); snapMounts(); placeCables();
 }

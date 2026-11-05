@@ -47,6 +47,7 @@ function draw() {
   if (on("ly_check")) { ctx.strokeStyle = C.bad; ctx.lineWidth = 2; for (const p of S.spots) { const X = tx(p.x), Y = ty(p.y); ctx.beginPath(); ctx.moveTo(X - 7, Y - 7); ctx.lineTo(X + 7, Y + 7); ctx.moveTo(X + 7, Y - 7); ctx.lineTo(X - 7, Y + 7); ctx.stroke(); }
     ctx.setLineDash([6, 4]); ctx.lineWidth = 1.5; S.letters.forEach(L => { if (S.bars.length && !Core.letterOnFrame(L, S.bars)) { letterPath(L); ctx.stroke(); } }); ctx.setLineDash([]); }
   if (on("ly_dim") && S.letters.length) drawDims();
+  if (on("ly_mount") && S.sel && S.sel.k === "mount" && S.mounts && S.mounts[S.sel.i]) { const m = S.mounts[S.sel.i], r = Math.max(3, cfg.mountD / 2 * view.s) + 5; ctx.save(); ctx.strokeStyle = C.skel; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(tx(m.x), ty(m.y), r, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
   if (on("ly_mdim") && on("ly_mount") && S.mounts && S.mounts.length) drawHoleDims();
   if (S.tool === "measure") drawMeasure();
 }

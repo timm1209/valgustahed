@@ -18,16 +18,17 @@ const barEndPt = (b, end) => [end ? b.x1 : b.x0, b.y];
 /* cut line direction at one end of a rail (end 0 = a, 1 = b) */
 function railCut(r, end) {
   const P = end ? r.b : r.a, Q = end ? r.a : r.b, u = RV.norm(RV.sub(Q, P)), sq = [-u[1], u[0]];
+  if (r.link === false) return { dir: sq, kind: "free" }; /* not connected: square end */
   /* corner with a horizontal profile: the rail end sits on the bar end centre -> both mitred */
-  for (const b of S.bars || []) for (const e of [0, 1]) if (near(P, barEndPt(b, e), 1)) { const v = [e ? -1 : 1, 0]; if (Math.abs(RV.cross(u, v)) < 1e-6) return { dir: sq, kind: "straight" }; return { dir: RV.norm(RV.add(u, v)), kind: "miter" }; }
+  for (const b of S.bars || []) for (const e of [0, 1]) if (b.link !== false && near(P, barEndPt(b, e), 1)) { const v = [e ? -1 : 1, 0]; if (Math.abs(RV.cross(u, v)) < 1e-6) return { dir: sq, kind: "straight" }; return { dir: RV.norm(RV.add(u, v)), kind: "miter" }; }
   for (const o of S.rails || []) {
-    if (o === r) continue; const other = near(o.a, P) ? o.b : near(o.b, P) ? o.a : null; if (!other) continue;
+    if (o === r || o.link === false) continue; const other = near(o.a, P) ? o.b : near(o.b, P) ? o.a : null; if (!other) continue;
     const v = RV.norm(RV.sub(other, P));
     if (Math.abs(RV.cross(u, v)) < 1e-6) return { dir: sq, kind: "straight" }; /* straight continuation: square cut */
     return { dir: RV.norm(RV.add(u, v)), kind: "miter" };
   }
-  for (const b of S.bars || []) if (P[0] >= b.x0 - RAIL_EPS && P[0] <= b.x1 + RAIL_EPS && (Math.abs(P[1] - (b.y + b.h / 2)) < RAIL_EPS || Math.abs(P[1] - (b.y - b.h / 2)) < RAIL_EPS)) return { dir: [1, 0], kind: "bar" };
-  for (const q of S.posts || []) for (const [lo, hi] of Core.postSegs(S.bars, q)) if (P[1] >= lo - RAIL_EPS && P[1] <= hi + RAIL_EPS && (Math.abs(P[0] - (q.x - q.w / 2)) < RAIL_EPS || Math.abs(P[0] - (q.x + q.w / 2)) < RAIL_EPS)) return { dir: [0, 1], kind: "post" };
+  for (const b of S.bars || []) if (b.link !== false && P[0] >= b.x0 - RAIL_EPS && P[0] <= b.x1 + RAIL_EPS && (Math.abs(P[1] - (b.y + b.h / 2)) < RAIL_EPS || Math.abs(P[1] - (b.y - b.h / 2)) < RAIL_EPS)) return { dir: [1, 0], kind: "bar" };
+  for (const q of S.posts || []) if (q.link !== false) for (const [lo, hi] of Core.postSegs(S.bars, q)) if (P[1] >= lo - RAIL_EPS && P[1] <= hi + RAIL_EPS && (Math.abs(P[0] - (q.x - q.w / 2)) < RAIL_EPS || Math.abs(P[0] - (q.x + q.w / 2)) < RAIL_EPS)) return { dir: [0, 1], kind: "post" };
   return { dir: sq, kind: "free" };
 }
 /* outline (4 corners), lengths and cut angles of a rail */
@@ -57,12 +58,12 @@ function railEndAt(px, py) {
    b.ea / b.eb = { p, d } cut line of the left / right end (null = square). */
 function barRailCuts() {
   for (const b of S.bars || []) {
-    b.ea = null; b.eb = null; if (!(S.rails || []).length) continue;
+    b.ea = null; b.eb = null; if (!(S.rails || []).length || b.link === false) continue;
     for (const end of [0, 1]) {
       const P = barEndPt(b, end), v = [end ? -1 : 1, 0]; let cut = null;
-      for (const r of S.rails) for (const k of ["a", "b"]) if (!cut && near(r[k], P, 1)) { const Q = k === "a" ? r.b : r.a, u = RV.norm(RV.sub(Q, P)); if (Math.abs(RV.cross(u, v)) > 1e-6) cut = { p: P.slice(), d: RV.norm(RV.add(u, v)) }; }
+      for (const r of S.rails) for (const k of ["a", "b"]) if (!cut && r.link !== false && near(r[k], P, 1)) { const Q = k === "a" ? r.b : r.a, u = RV.norm(RV.sub(Q, P)); if (Math.abs(RV.cross(u, v)) > 1e-6) cut = { p: P.slice(), d: RV.norm(RV.add(u, v)) }; }
       if (!cut) for (const r of S.rails) {
-        const g = railGeom(r), tol = Math.max(b.h, r.w || cfg.profile) * 1.5; if (Math.abs(g.u[1]) < 0.05) continue; /* almost horizontal: no T */
+        if (r.link === false) continue; const g = railGeom(r), tol = Math.max(b.h, r.w || cfg.profile) * 1.5; if (Math.abs(g.u[1]) < 0.05) continue; /* almost horizontal: no T */
         const t = (b.y - r.a[1]) / g.u[1], xi = r.a[0] + g.u[0] * t; if (t < -1 || t > g.len + 1 || Math.abs(xi - P[0]) > tol) continue;
         /* the rail must cover the full bar height at the crossing */
         const tLo = (b.y - b.h / 2 - r.a[1]) / g.u[1], tHi = (b.y + b.h / 2 - r.a[1]) / g.u[1]; if (Math.min(tLo, tHi) < -g.h || Math.max(tLo, tHi) > g.len + g.h) continue;
@@ -78,8 +79,8 @@ function barRailCuts() {
 }
 /* rails attached to a bar: ends on its top/bottom edge, or on a bar end centre (corner) */
 function barRailLinks(b) {
-  const out = [];
-  for (const r of S.rails || []) for (const k of ["a", "b"]) {
+  const out = []; if (b.link === false) return out;
+  for (const r of S.rails || []) if (r.link !== false) for (const k of ["a", "b"]) {
     const P = r[k], o = { r, k, P0: P.slice(), Q0: (k === "a" ? r.b : r.a).slice() };
     const ce = [0, 1].find(e => near(P, barEndPt(b, e), 1)); if (ce != null) { out.push(Object.assign(o, { corner: ce })); continue; }
     if (P[0] < b.x0 - 1 || P[0] > b.x1 + 1) continue;
@@ -112,8 +113,9 @@ function barPieces2(b) {
 function railHoles() {
   const out = [], d = cfg.mountD || 6, lim = cfg.mountTwo || 160;
   const onBar = (x, y) => (S.bars || []).some(b => x >= b.x0 - 0.5 && x <= b.x1 + 0.5 && Math.abs(Math.abs(y - b.y) - b.h / 2) < 0.6);
-  const free = (S.posts || []).filter(q => q.fixed).flatMap(q => Core.postSegs(S.bars, q).filter(g => !(onBar(q.x, g[0]) && onBar(q.x, g[1]))).map(g => ({ a: [q.x, g[0]], b: [q.x, g[1]], w: q.w })));
-  for (const r of [...(S.rails || []), ...free]) {
+  /* posts: drawn ones with a free end, and any post whose holes were switched on by hand (not dot posts: they have their own) */
+  const free = (S.posts || []).filter(q => q.dot == null && q.holes !== false && (q.holes === true || q.fixed)).flatMap(q => Core.postSegs(S.bars, q).filter(g => q.holes === true || !(onBar(q.x, g[0]) && onBar(q.x, g[1]))).map(g => ({ a: [q.x, g[0]], b: [q.x, g[1]], w: q.w })));
+  for (const r of [...(S.rails || []).filter(r => r.holes !== false), ...free]) {
     const g = railGeom(r), st = 1, e = Math.max(cfg.mountEnd > 0 ? cfg.mountEnd : g.h, d / 2 + 2), iv = [];
     let cur = null;
     for (let t = 0; t <= g.len + 1e-6; t += st) {
@@ -193,6 +195,7 @@ function railSnap(x, y, from, shift, skip) {
 }
 /* an end inside a bar or post is moved onto the edge that faces the other end, along the rail line */
 function railFit(r) {
+  if (r.link === false) return;
   for (const k of ["a", "b"]) {
     const P = r[k], Q = k === "a" ? r.b : r.a;
     if ((S.bars || []).some(b => near(P, barEndPt(b, 0), 1) || near(P, barEndPt(b, 1), 1))) continue; /* corner with a bar end */

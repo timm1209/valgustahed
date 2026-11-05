@@ -114,6 +114,7 @@ body.locked{overflow:hidden}
 .admTabs{display:flex;gap:4px;margin-left:8px}.admTabs .btn.on{background:var(--ink);color:var(--panel)}
 .oigNote{margin:12px 14px 0;color:var(--muted);font-size:13px;line-height:1.45}.oigFoot{padding:0 14px 14px;display:flex;justify-content:flex-end}
 .oigTable th.c,.oigTable td.c{text-align:center;width:90px}.oigTable tr.grp td{font-weight:600;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em;background:var(--paper)}.oigTable input{width:16px;height:16px}
+.framePop{position:absolute;z-index:30;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.16);padding:10px 12px;width:300px;display:grid;gap:8px;font-size:13px}.framePop[hidden]{display:none}.fpHead{display:flex;align-items:center;gap:8px}.fpHead b{flex:1;font-size:13px}.fpX{background:none;border:0;cursor:pointer;color:var(--muted);font-size:14px}.fpRow{display:flex;align-items:center;gap:8px;cursor:pointer;line-height:1.3}.fpRow small{color:var(--muted)}.fpBtns{display:flex;flex-wrap:wrap;gap:6px}.fpDanger{color:var(--bad)!important}
 .jointNote{margin:2px 0 4px;font-size:12px;color:var(--muted);line-height:1.45}.jointNote .btn{margin-top:6px;display:block}
 .dbStatRow{display:flex;align-items:center;gap:8px}.dbStatRow .dbStat{flex:1;min-width:0}.dbStatRow .btn{flex:0 0 auto;margin-left:auto}.btn.arm{background:var(--bad)!important;border-color:var(--bad)!important;color:#fff!important}
 .fileX{font:inherit;font-size:13px;line-height:1;color:var(--muted);background:none;border:1px solid transparent;border-radius:6px;padding:4px 6px;cursor:pointer;margin-left:-8px}.fileX:hover{color:var(--ink);border-color:var(--line)}.fileX.arm{background:var(--bad);border-color:var(--bad);color:#fff}
@@ -268,7 +269,7 @@ table.types input{padding:4px 5px}
         <button role="menuitem" id="miOut">Logi välja</button>
       </div>
     </div>
-    <div class="ver" id="appVer" title="Rakenduse versioon">v2.53 · 05.11.2026</div>
+    <div class="ver" id="appVer" title="Rakenduse versioon">v2.54 · 05.11.2026</div>
   </header>
   <section class="worksPage" id="dbModal" aria-labelledby="dbTitle" hidden>
     <div class="dbBox">
@@ -322,6 +323,12 @@ table.types input{padding:4px 5px}
       <button data-tool="screw" title="Lisa kinnitusava (8)" aria-label="Lisa kinnitusava"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="6"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg></button>
       <button data-tool="measure" title="Mõõdulint (7)" aria-label="Mõõdulint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="2.5" y="8" width="19" height="8" rx="1"/><path d="M6 8v3M9.5 8v4.5M13 8v3M16.5 8v4.5"/></svg></button>
       <button data-tool="delete" title="Kustuta (4)" aria-label="Kustuta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
+    </div>
+    <div class="framePop" id="framePop" role="dialog" aria-labelledby="fpTitle" hidden>
+      <div class="fpHead"><b id="fpTitle"></b><button class="fpX" id="fpClose" aria-label="Sulge">✕</button></div>
+      <label class="fpRow"><input type="checkbox" id="fpHoles"> Kinnitusavad sellel osal <small id="fpHoleInfo"></small></label>
+      <label class="fpRow" title="Sees: otsad tõmbuvad ja lõigatakse ristuvate raamide järgi ning liiguvad nendega kaasa. Väljas: osa jääb täpselt nii, nagu see on."><input type="checkbox" id="fpLink"> Magnetiliselt ühendatud ristuvate raamidega</label>
+      <div class="fpBtns"><button class="btn ghost sm" id="fpDelHoles">Kustuta selle osa avad</button><button class="btn ghost sm" id="fpRestore" hidden>Taasta kustutatud avad</button><button class="btn ghost sm fpDanger" id="fpDel">Kustuta osa</button></div>
     </div>
     <div class="toast" id="toast"></div>
     <div class="drop" id="drop" hidden>Lase fail lahti<br><small style="font-size:15px;font-family:var(--f-body)">DXF-joonis või salvestatud projekt (.json)</small></div>
@@ -635,6 +642,7 @@ table.types input{padding:4px 5px}
 <script src="js/vaade2d.js"></script>
 <script src="js/raam.js"></script>
 <script src="js/raam-vaba.js"></script>
+<script src="js/raam-valik.js"></script>
 <script src="js/tooriistad.js"></script>
 <script src="js/eksport.js"></script>
 <script src="js/projekt.js"></script>

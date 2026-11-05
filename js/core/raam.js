@@ -219,7 +219,8 @@ function postSegs(bars, q) {
   if (q.dot != null) return q.seg ? [q.seg] : []; /* post for a dot / accent: its own span between bar and dot */
   if (q.fixed) { /* drawn with the frame tool: its own span, cut where a horizontal profile crosses it */
     if (!q.seg) return []; let out = [q.seg.slice()];
-    for (const b of bars) { if (q.x + q.w / 2 <= b.x0 + 0.5 || q.x - q.w / 2 >= b.x1 - 0.5) continue; const e0 = b.y - b.h / 2, e1 = b.y + b.h / 2;
+    if (q.link === false) return out; /* not connected: the crossing bar does not cut it */
+    for (const b of bars) { if (b.link === false || q.x + q.w / 2 <= b.x0 + 0.5 || q.x - q.w / 2 >= b.x1 - 0.5) continue; const e0 = b.y - b.h / 2, e1 = b.y + b.h / 2;
       out = out.flatMap(([lo, hi]) => e1 <= lo || e0 >= hi ? [[lo, hi]] : [[lo, e0], [e1, hi]].filter(g => g[1] - g[0] > 1)); }
     return out;
   }
@@ -232,7 +233,7 @@ function postSegs(bars, q) {
 /* a bar end close to a post is moved flush with the post's outer edge */
 function snapBars(bars, posts) {
   for (const b of bars) for (const q of posts) {
-    if (q.dot != null || q.fixed) continue;
+    if (q.dot != null || q.fixed || q.link === false || b.link === false) continue;
     const l = q.x - q.w / 2, r = q.x + q.w / 2;
     if (Math.abs(l - b.x0) < q.w * 1.5 && q.x < (b.x0 + b.x1) / 2) b.x0 = l;
     if (Math.abs(r - b.x1) < q.w * 1.5 && q.x > (b.x0 + b.x1) / 2) b.x1 = r;

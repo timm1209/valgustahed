@@ -38,6 +38,7 @@ GitHubis töötab see GitHub Pagesiga otse: lae kogu kaust repositooriumi ja lü
 | `js/vaade2d.js` | 2D-joonis, mõõdulint, mõõdud |
 | `js/raam.js` | Raami muutmine, lõikeloend |
 | `js/raam-vaba.js` | Vaba kujuga raam: profiilid nurga all, gärungnurgad, nende kinnitusavad |
+| `js/raam-valik.js` | Raami osa valikud: kinnitusavad, magnetiline ühendus, kustutamine |
 | `js/tooriistad.js` | Hiir, tööriistad, kiirklahvid |
 | `js/eksport.js` | LED-joonise eksport (DXF/DWG), külg |
 | `js/projekt.js` | Projektifail (.ledprojekt.json) |

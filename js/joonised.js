@@ -19,7 +19,8 @@ function frameDXF() {
   const seenLen = new Set();
   parts.forEach((pt, k) => {
     const px = Math.min(...pt.bars.map(b => b.x0)), dx = gx - px, dy = -k * pitch;
-    const bars = pt.bars.map(b => ({ x0: b.x0 + dx, x1: b.x1 + dx, y: b.y + dy, h: b.h })).sort((a, b) => b.y - a.y);
+    const sh = e => e ? { p: [e.p[0] + dx, e.p[1] + dy], d: e.d } : null;
+    const bars = pt.bars.map(b => ({ x0: b.x0 + dx, x1: b.x1 + dx, y: b.y + dy, h: b.h, ea: sh(b.ea), eb: sh(b.eb) })).sort((a, b) => b.y - a.y);
     const segs = pt.segs.map(s => ({ x: s.x + dx, w: s.w, lo: s.lo + dy, hi: s.hi + dy }));
     outBars.push(...bars); for (const s of segs) outPosts.push({ x: s.x, w: s.w, dot: -1, seg: [s.lo, s.hi] });
     const top = bars[0], bot = bars[bars.length - 1];
@@ -139,7 +140,7 @@ function sheetDXF(opt = {}) {
     const [ox, oy] = useTpl ? [cx, ly0 - DIM - 120 - 60 - fullH * sc / 2] : P(bx + bw / 2, by + bh / 2), T = (q, z) => [ox + (q[0] - cx + z * sdx - D * sdx / 2) * sc, oy + (q[1] - cy + z * sdy - D * sdy / 2) * sc];
     const rect = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
     const frameCol = colorOf(S.order.frameColor) || 0xc4cad0, pd = cfg.profile || 30, simp = lp => Core.simplifyClosed ? Core.simplifyClosed(lp, 0.6) : lp;
-    const fr = [...(S.bars || []).map(b => rect(b.x0, b.y - b.h / 2, b.x1, b.y + b.h / 2)), ...(S.posts || []).flatMap(q => Core.postSegs(S.bars, q).map(([lo, hi]) => rect(q.x - q.w / 2, lo, q.x + q.w / 2, hi))), ...(S.rails || []).map(r => railGeom(r).poly)];
+    const fr = [...(S.bars || []).map(b => barPoly(b)), ...(S.posts || []).flatMap(q => Core.postSegs(S.bars, q).map(([lo, hi]) => rect(q.x - q.w / 2, lo, q.x + q.w / 2, hi))), ...(S.rails || []).map(r => railGeom(r).poly)];
     if (fr.length) { const sw = Core.sweepLoops(fr, pd * sdx, pd * sdy).map(lp => lp.map(q => T(q, -pd))); api.hatch(sw.map(lp => lp.map(q => [q[0], q[1]])), "INFO", frameCol); }
     const shade = (c, f) => (Math.round(((c >> 16) & 255) * f) << 16) | (Math.round(((c >> 8) & 255) * f) << 8) | Math.round((c & 255) * f);
     const faces = [];

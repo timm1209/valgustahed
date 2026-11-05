@@ -180,7 +180,9 @@ function writeDXF(d) {
       });
     }
   }
-  for (const b of d.bars) { const xs = [b.x0, ...((b.j && b.j.xs) || []), b.x1]; for (let i = 1; i < xs.length; i++) poly([[xs[i - 1], b.y - b.h / 2], [xs[i], b.y - b.h / 2], [xs[i], b.y + b.h / 2], [xs[i - 1], b.y + b.h / 2]], true, "RAAM"); }
+  for (const b of d.bars) { const xs = [b.x0, ...((b.j && b.j.xs) || []), b.x1], lo = b.y - b.h / 2, hi = b.y + b.h / 2, n = xs.length - 1;
+    for (let i = 1; i < xs.length; i++) { const L = i === 1 ? b.ea : null, R = i === n ? b.eb : null;
+      poly([[cutX(L, lo, xs[i - 1]), lo], [cutX(R, lo, xs[i]), lo], [cutX(R, hi, xs[i]), hi], [cutX(L, hi, xs[i - 1]), hi]], true, "RAAM"); } }
   if (d.rails) for (const pr of d.rails) poly(pr, true, "RAAM"); /* free-angle profiles: their mitred outlines */
   if (d.posts) for (const q of d.posts) for (const [lo, hi] of postSegs(d.bars, q)) poly([[q.x - q.w / 2, lo], [q.x + q.w / 2, lo], [q.x + q.w / 2, hi], [q.x - q.w / 2, hi]], true, "RAAM");
   if (d.wire && d.wire.length > 1) poly(d.wire.map(l => [l.x, l.y]), false, "JUHE");
@@ -192,6 +194,8 @@ function writeDXF(d) {
   for (const [a, b] of Object.entries(d.layerNames || EXPORT_LAYER_NAMES)) { const e = b.replace(/[^\x20-\x7e]/g, ch => "\\U+" + ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0")); t = t.split("\n  8\n" + a + "\n").join("\n  8\n" + e + "\n").split("\n  2\n" + a + "\n").join("\n  2\n" + e + "\n"); }
   return t.replace(/\r?\n/g, "\r\n");
 }
+/* angled bar end: x where the cut line (point p, direction d) meets height y; square end when there is no cut */
+function cutX(e, y, fallback) { if (!e || Math.abs(e.d[1]) < 1e-9) return fallback; return e.p[0] + e.d[0] * (y - e.p[1]) / e.d[1]; }
 /* layer names in the exported file (internal name -> customer's CAM layer) */
 const EXPORT_LAYER_NAMES = { KONTUUR: "2_CUT", POHI: "3_AL", SOON: "1_SOON_2_5_TERA", MOODUD: "8_MÕÕDUD", KINNITUS: "9_KINNITUSAVAD", RAAM: "5_RAAM_AL" };
 let CRC; function crc32(b) { if (!CRC) { CRC = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; CRC[n] = c >>> 0; } } let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }

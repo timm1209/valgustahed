@@ -51,6 +51,7 @@ function updateDotPosts() { for (const q of S.posts || []) if (q.dot != null && 
 /* b.jm = joint places set by hand (dragged, added or removed): they replace the automatic ones of that bar */
 const JOINT_MIN = 50;
 function updateJoints() {
+  if (typeof barRailCuts === "function") barRailCuts();
   if (!cfg.barExt) { for (const b of S.bars || []) b.j = null; return; }
   Core.frameJoints(S.letters, S.bars || [], cfg.barSegMax);
   for (const b of S.bars || []) if (b.jm) { const xs = b.jm.filter(x => x > b.x0 + JOINT_MIN - 1e-6 && x < b.x1 - JOINT_MIN + 1e-6).sort((p, q) => p - q); b.j = { xs, fail: false, man: true }; }
@@ -123,7 +124,7 @@ const MAT_ABBR = { alumiinium: "AL", "tsingitud teras": "Zn", "roostevaba teras"
 function frameMaterialLine() { const m = (S.order && S.order.frameMat || "").trim(), a = MAT_ABBR[m.toLowerCase()] || m; const p = cfg.profile; const n = [30, 25, 20].includes(+p) ? `U${p}x${p}mm` : `Profiil ${p}x${p}mm`; return a ? `${n} ${a}` : n; }
 function frameCutList() {
   const L = [];
-  for (const b of S.bars || []) { const xs = [b.x0, ...((b.j && b.j.xs) || []), b.x1]; for (let i = 1; i < xs.length; i++) L.push(Math.round(xs[i] - xs[i - 1])); }
+  for (const b of S.bars || []) { if (b.ea || b.eb) { for (const pc of barPieces2(b)) if (!pc.angA && !pc.angB) L.push(Math.round(pc.long)); continue; } const xs = [b.x0, ...((b.j && b.j.xs) || []), b.x1]; for (let i = 1; i < xs.length; i++) L.push(Math.round(xs[i] - xs[i - 1])); }
   for (const q of S.posts || []) for (const [lo, hi] of Core.postSegs(S.bars, q)) L.push(Math.round(hi - lo));
   const cnt = new Map(); for (const v of L) if (v > 0) cnt.set(v, (cnt.get(v) || 0) + 1);
   return [...cnt.entries()].sort((a, b) => b[0] - a[0]);
@@ -136,8 +137,8 @@ function frameParts() {
   const partOf = x => { let k = 0; while (k < rc.length && x > rc[k]) k++; return k; };
   for (const b of bars) {
     const xs = (b.j && b.j.xs) || [];
-    if (xs.length === rc.length) { const c = [b.x0, ...xs, b.x1]; for (let k = 0; k < n; k++) if (c[k + 1] - c[k] > 1) parts[k].bars.push({ x0: c[k], x1: c[k + 1], y: b.y, h: b.h }); }
-    else parts[partOf((b.x0 + b.x1) / 2)].bars.push({ x0: b.x0, x1: b.x1, y: b.y, h: b.h });
+    if (xs.length === rc.length) { const c = [b.x0, ...xs, b.x1]; for (let k = 0; k < n; k++) if (c[k + 1] - c[k] > 1) parts[k].bars.push({ x0: c[k], x1: c[k + 1], y: b.y, h: b.h, ea: k === 0 ? b.ea : null, eb: k === n - 1 ? b.eb : null }); }
+    else parts[partOf((b.x0 + b.x1) / 2)].bars.push({ x0: b.x0, x1: b.x1, y: b.y, h: b.h, ea: b.ea, eb: b.eb });
   }
   for (const q of S.posts || []) for (const sg of Core.postSegs(bars, q)) parts[partOf(q.x)].segs.push({ x: q.x, w: q.w, lo: sg[0], hi: sg[1] });
   return parts.filter(p => p.bars.length);

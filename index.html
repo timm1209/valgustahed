@@ -98,6 +98,8 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 .userWrap{position:relative}.userBtn{display:flex;align-items:baseline;gap:6px;max-width:300px;text-transform:none;letter-spacing:.02em}.userBtn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.userBtn small{font-family:var(--f-body);font-weight:400;color:var(--muted);font-size:11.5px}
 .userMenu{position:absolute;right:0;top:calc(100% + 6px);z-index:75;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.16);min-width:210px;padding:4px;display:grid}.userMenu[hidden]{display:none}
 .userMenu button{font:inherit;font-size:14px;text-align:left;background:none;border:0;padding:9px 12px;border-radius:6px;cursor:pointer;color:var(--ink)}.userMenu button:hover{background:var(--paper)}.userMenu button[hidden]{display:none}
+.miView{border-top:1px solid var(--line2);margin-top:4px;padding:6px 0 4px;border-bottom:1px solid var(--line2);margin-bottom:4px;display:grid}.miView[hidden]{display:none}.miView small{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;padding:2px 12px 4px}.miView span{display:grid}.userMenu .miView button.on{font-weight:600;background:var(--paper)}.userMenu .miView button.on::after{content:" ✓"}
+.viewAsBar{display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:13px;padding:4px 4px 4px 12px;border-radius:99px;background:#f9eeda;color:#7a4b00;border:1px solid #f0d49a}.viewAsBar[hidden]{display:none}.viewAsBar .btn.sm{padding:3px 10px;font-size:12.5px}
 body.locked{overflow:hidden}
 .authGate{position:fixed;inset:0;z-index:90;background:var(--paper);display:flex;align-items:center;justify-content:center;padding:16px}.authGate[hidden]{display:none}
 .gBox{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 48px rgba(0,0,0,.12);width:min(400px,100%);padding:22px 8px 12px}
@@ -253,15 +255,17 @@ table.types input{padding:4px 5px}
       <nav class="topNav" aria-label="Lehed"><button class="navBtn on" id="navApp" aria-current="page" title="Valgustähtede programm">Valgustähed</button><button class="navBtn" id="btnDb" title="Tehtud tööd andmebaasis" hidden>Tööd</button></nav></div>
     <div class="file" id="fileInfo">Näidis</div>
     <div class="sp"></div>
+    <div class="viewAsBar" id="viewAsBar" role="status" hidden>Vaatad kui <b id="viewAsName"></b><button class="btn ghost sm" id="btnViewAsEnd" title="Tagasi admini vaatesse">Lõpeta</button></div>
     <div class="userWrap">
       <button class="btn ghost sm userBtn" id="btnUser" aria-haspopup="menu" aria-expanded="false" hidden><span id="userName"></span><small id="userRole"></small> ▾</button>
       <div class="userMenu" id="userMenu" role="menu" hidden>
         <button role="menuitem" id="miPass">Muuda parooli</button>
         <button role="menuitem" id="miAdmin" hidden>Kasutajad ja õigused</button>
+        <div class="miView" id="miView" hidden><small>Vaata kui grupp</small><span id="miViewBtns"></span></div>
         <button role="menuitem" id="miOut">Logi välja</button>
       </div>
     </div>
-    <div class="ver" id="appVer" title="Rakenduse versioon">v2.38 · 05.11.2026</div>
+    <div class="ver" id="appVer" title="Rakenduse versioon">v2.39 · 05.11.2026</div>
   </header>
   <section class="worksPage" id="dbModal" aria-labelledby="dbTitle" hidden>
     <div class="dbBox">

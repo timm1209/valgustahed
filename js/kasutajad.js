@@ -59,6 +59,7 @@ function auUI() {
   if (me && typeof autoDrafter === "function") autoDrafter();
   const key = me ? me.id + "|" + me.roll : ""; if (key !== AU.permKey) { AU.permKey = key; if (typeof oigLoad === "function") oigLoad(); }
   if (typeof dbUI === "function") dbUI();
+  if (typeof oigViewUI === "function") oigViewUI();
 }
 function menuToggle(on) { const m = $("userMenu"); m.hidden = on === undefined ? !m.hidden : !on; $("btnUser").setAttribute("aria-expanded", String(!m.hidden)); }
 

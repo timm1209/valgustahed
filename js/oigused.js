@@ -28,31 +28,53 @@ const OIGUSED = [
   { g: "Toimingud", k: "t_mall", nimi: "Mall ja eksport malli peale", el: ["nfBox"] }
 ];
 const OIG_TOOLS = ["led", "hole", "bar", "post", "screw", "delete"];
-const OIG = { perms: null, grupid: {}, dirty: false };
+const OIG = { perms: null, grupid: {}, dirty: false, viewAs: null };   /* viewAs: admin vaatab rakendust kui see grupp (ainult kuva, andmebaas kontrollib ikka admini järgi) */
 
 /* ---------- kas tohib ---------- */
 function oigus(k) {
   const me = typeof DB !== "undefined" ? DB.me : null;
   if (!me) return true;                     /* enne sisselogimist on rakendus nagunii peidus */
-  if (me.roll === "admin") return true;
+  if (me.roll === "admin" && !OIG.viewAs) return true;
   return !!(OIG.perms && OIG.perms[k]);
 }
+const oigRoll = () => (DB.me && DB.me.roll === "admin" && OIG.viewAs) || (DB.me && DB.me.roll) || "";
 async function oigLoad() {
   OIG.perms = null; OIG.grupid = {};
+  if (!DB.me || DB.me.roll !== "admin") OIG.viewAs = null;
   const c = typeof dbClient === "function" ? dbClient() : null; if (!c || !DB.me) { oigApply(); return; }
   try {
     const { data, error } = await c.from("rollid").select("roll,nimi,oigused"); if (error) throw error;
     for (const r of data || []) OIG.grupid[r.roll] = r;
-    OIG.perms = (OIG.grupid[DB.me.roll] || {}).oigused || {};
+    OIG.perms = (OIG.grupid[oigRoll()] || {}).oigused || {};
   } catch (e) { console.warn("Õigusi ei saanud laadida", e); OIG.perms = {}; }
   oigApply();
 }
 
+/* ---------- admin: vaata kui grupp ---------- */
+async function oigViewAs(roll) {
+  if (!(DB.me && DB.me.roll === "admin")) return;
+  OIG.viewAs = OIG_GRUPID.some(g => g.roll === roll) ? roll : null;
+  if (typeof menuToggle === "function") menuToggle(false);
+  await oigLoad();
+  if (OIG.viewAs) toast("Vaatad rakendust kui grupp „" + oigGrupNimi(OIG.viewAs) + "“.");
+}
+const oigGrupNimi = r => (OIG_GRUPID.find(g => g.roll === r) || {}).nimi || r;
+function oigViewUI() {
+  const adm = !!(DB.me && DB.me.roll === "admin");
+  $("miView").hidden = !adm;
+  $("miViewBtns").innerHTML = [{ roll: "", nimi: "Admin (tavaline)" }, ...OIG_GRUPID].map(g => `<button role="menuitemradio" aria-checked="${(OIG.viewAs || "") === g.roll}" class="${(OIG.viewAs || "") === g.roll ? "on" : ""}" data-viewas="${g.roll}">${esc(g.nimi)}</button>`).join("");
+  $("viewAsBar").hidden = !(adm && OIG.viewAs); $("viewAsName").textContent = OIG.viewAs ? oigGrupNimi(OIG.viewAs) : "";
+  if (DB.me) $("userRole").textContent = (ROLLI_NIMI[DB.me.roll] || "") + (adm && OIG.viewAs ? " → " + oigGrupNimi(OIG.viewAs) : "");
+}
+
 /* ---------- peida, mida ei tohi ---------- */
 function oigApply() {
+  oigViewUI();
   for (const o of OIGUSED) { const ok = oigus(o.k); for (const id of o.el) { const e = $(id); if (!e) continue; if (!ok) { e.dataset.oigPeidus = "1"; e.hidden = true; } else if (e.dataset.oigPeidus) { delete e.dataset.oigPeidus; e.hidden = false; } } }
   /* Tööd button and the template box are also shown by their own modules: keep them hidden when not allowed */
-  if (!oigus("t_tood_vaata") && $("btnDb")) $("btnDb").hidden = true;
+  if ($("btnDb")) $("btnDb").hidden = !DB.me || !oigus("t_tood_vaata");
+  if (!oigus("t_tood_vaata") && $("dbModal") && !$("dbModal").hidden) dbClose();
+  if ($("dbModal") && !$("dbModal").hidden && typeof dbRender === "function") dbRender();
   const edit = oigus("t_tooriistad");
   document.querySelectorAll("#tools button").forEach(b => { if (OIG_TOOLS.includes(b.dataset.tool)) b.hidden = !edit; });
   if (!edit && OIG_TOOLS.includes(S.tool)) setTool("select");
@@ -97,3 +119,5 @@ $("admTabUsers").addEventListener("click", oigUsersTab);
 $("admTabRights").addEventListener("click", oigOpen);
 $("oigTable").addEventListener("change", e => { if (e.target.matches("input[data-k]")) { OIG.dirty = true; $("btnOigSave").disabled = false; } });
 $("btnOigSave").addEventListener("click", oigSave);
+$("miViewBtns").addEventListener("click", e => { const b = e.target.closest("[data-viewas]"); if (b) { e.stopPropagation(); oigViewAs(b.dataset.viewas); } });
+$("btnViewAsEnd").addEventListener("click", () => oigViewAs(""));

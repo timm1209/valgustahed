@@ -43,6 +43,7 @@ function dbUI() {
   $("btnDbSave").disabled = !S.letters.length || DB.busy || !dbReady();
   if (typeof oigus === "function") { $("btnDbSave").hidden = !oigus("t_tood_salvesta"); $("btnDbOpen").hidden = !oigus("t_tood_vaata"); }
   $("btnDbOpen").disabled = !dbReady();
+  const open = S.letters.length > 0; $("btnCloseWork").hidden = !open; $("btnCloseWork2").hidden = !open; if (!open) closeDisarm();
   $("dbStat").textContent = S.dbId ? `Andmebaasis: ${S.dbName || dbName()}${S.dbSaved ? " · salvestatud " + dbFmtTime(S.dbSaved) : ""}` : (S.letters.length && dbReady() ? "See töö pole veel andmebaasis." : "");
 }
 
@@ -61,11 +62,34 @@ async function dbSave(asNew) {
       if (S.dbId && !asNew && /PGRST116|0 rows|no rows/i.test(res.error.message + " " + (res.error.code || ""))) { S.dbId = null; DB.busy = false; return dbSave(true); }
       throw res.error;
     }
-    S.dbId = res.data.id; S.dbName = res.data.nimi; S.dbSaved = res.data.muudetud;
+    S.dbId = res.data.id; S.dbName = res.data.nimi; S.dbSaved = res.data.muudetud; S.dbSnap = workSig();
     toast("Salvestatud andmebaasi: " + res.data.nimi);
     const i = DB.list.findIndex(r => r.id === res.data.id); if (i >= 0) DB.list[i] = res.data; else DB.list.unshift(res.data);
   } catch (e) { console.error(e); toast("Salvestamine ebaõnnestus: " + dbErr(e)); }
   finally { DB.busy = false; dbUI(); if (!$("dbModal").hidden) dbRender(); }
+}
+
+/* ---------- töö sulgemine ---------- */
+/* the work's content without the save time: tells whether anything changed since it was opened or saved */
+function workSig() { try { return JSON.stringify(Object.assign(projectData(), { saved: null })); } catch (e) { return ""; } }
+const workDirty = () => S.letters.length > 0 && (!S.dbId || workSig() !== S.dbSnap);
+let closeArmT = null;
+function closeDisarm() { clearTimeout(closeArmT); closeArmT = null; $("btnCloseWork").classList.remove("arm"); $("btnCloseWork").textContent = "Sulge töö"; $("btnCloseWork2").classList.remove("arm"); }
+function closeWork() {
+  if (!S.letters.length) return;
+  if (workDirty() && !closeArmT) {
+    $("btnCloseWork").classList.add("arm"); $("btnCloseWork").textContent = "Sulge salvestamata"; $("btnCloseWork2").classList.add("arm");
+    toast(S.dbId ? "Töös on salvestamata muudatusi. Vajuta uuesti „Sulge“, et sulgeda ilma salvestamata." : "Seda tööd pole andmebaasi salvestatud. Vajuta uuesti „Sulge“, et sulgeda ilma salvestamata.");
+    closeArmT = setTimeout(closeDisarm, 5000); return;
+  }
+  closeDisarm();
+  const nm = S.dbName || S.name;
+  Object.assign(S, { name: "", srcText: null, srcFmt: null, sample: null, letters: [], chains: [], samp: [], leds: [], holes: [], bars: [], posts: [], spots: [], mountAdd: [], mountDel: [], multi: [], rep: null, wire: null, parseInfo: null, openCount: 0, dupes: 0, sel: null, selLetter: null, manual: false, dbId: null, dbName: null, dbSaved: null, dbSnap: null });
+  undo.length = 0;
+  S.groups = [emptyGroup("Tekst")]; S.gCur = 0; S.order = emptyOrder(); fillOrder();
+  if (S.tool !== "select") setTool("select");
+  recompute(); updateFileInfo();
+  toast("Töö suletud" + (nm ? ": " + nm : "") + ".");
 }
 
 /* ---------- nimekiri ---------- */
@@ -83,7 +107,7 @@ async function dbOpenWork(id) {
     const { data, error } = await c.from(DB_TABLE).select("id,nimi,muudetud,data").eq("id", id).single(); if (error) throw error;
     dbClose();
     openProject(JSON.stringify(data.data), data.nimi);
-    S.dbId = data.id; S.dbName = data.nimi; S.dbSaved = data.muudetud; dbUI();
+    S.dbId = data.id; S.dbName = data.nimi; S.dbSaved = data.muudetud; S.dbSnap = workSig(); dbUI();
   } catch (e) { console.error(e); dbMsg(dbErr(e), true); }
 }
 async function dbDelete(id) {
@@ -122,6 +146,8 @@ $("btnDb").addEventListener("click", dbOpen);
 $("btnDbOpen").addEventListener("click", dbOpen);
 $("btnDbSave").addEventListener("click", () => dbSave(false));
 $("btnDbSaveNew").addEventListener("click", () => dbSave(true));
+$("btnCloseWork").addEventListener("click", closeWork);
+$("btnCloseWork2").addEventListener("click", closeWork);
 $("navApp").addEventListener("click", dbClose);
 document.querySelector(".brand").addEventListener("click", e => { if (e.target.classList.contains("logo")) dbClose(); });
 new MutationObserver(navSync).observe($("dbModal"), { attributes: true, attributeFilter: ["hidden"] });

@@ -114,6 +114,8 @@ body.locked{overflow:hidden}
 .admTabs{display:flex;gap:4px;margin-left:8px}.admTabs .btn.on{background:var(--ink);color:var(--panel)}
 .oigNote{margin:12px 14px 0;color:var(--muted);font-size:13px;line-height:1.45}.oigFoot{padding:0 14px 14px;display:flex;justify-content:flex-end}
 .oigTable th.c,.oigTable td.c{text-align:center;width:90px}.oigTable tr.grp td{font-weight:600;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em;background:var(--paper)}.oigTable input{width:16px;height:16px}
+.dbStatRow{display:flex;align-items:center;gap:8px}.dbStatRow .dbStat{flex:1;min-width:0}.dbStatRow .btn{flex:0 0 auto;margin-left:auto}.btn.arm{background:var(--bad)!important;border-color:var(--bad)!important;color:#fff!important}
+.fileX{font:inherit;font-size:13px;line-height:1;color:var(--muted);background:none;border:1px solid transparent;border-radius:6px;padding:4px 6px;cursor:pointer;margin-left:-8px}.fileX:hover{color:var(--ink);border-color:var(--line)}.fileX.arm{background:var(--bad);border-color:var(--bad);color:#fff}
 .dbStat{font-size:12px;color:var(--muted);line-height:1.4;overflow-wrap:anywhere}.dbStat:empty{display:none}
 .dbModal{position:fixed;inset:0;z-index:80;background:rgba(20,24,28,.38);display:flex;align-items:flex-start;justify-content:center;padding:max(40px,6vh) 16px 16px}
 .dbModal[hidden]{display:none}
@@ -253,7 +255,7 @@ table.types input{padding:4px 5px}
   <header class="top">
     <div class="brand"><img class="logo" src="img/logo.png" alt="DAG Reklaam" title="Valgustähed" onerror="this.remove()"><i></i>
       <nav class="topNav" aria-label="Lehed"><button class="navBtn on" id="navApp" aria-current="page" title="Valgustähtede programm">Valgustähed</button><button class="navBtn" id="btnDb" title="Tehtud tööd andmebaasis" hidden>Tööd</button></nav></div>
-    <div class="file" id="fileInfo">Näidis</div>
+    <div class="file" id="fileInfo">Näidis</div><button class="fileX" id="btnCloseWork2" title="Sulge töö" aria-label="Sulge töö" hidden>✕</button>
     <div class="sp"></div>
     <div class="viewAsBar" id="viewAsBar" role="status" hidden>Vaatad kui <b id="viewAsName"></b><button class="btn ghost sm" id="btnViewAsEnd" title="Tagasi admini vaatesse">Lõpeta</button></div>
     <div class="userWrap">
@@ -265,7 +267,7 @@ table.types input{padding:4px 5px}
         <button role="menuitem" id="miOut">Logi välja</button>
       </div>
     </div>
-    <div class="ver" id="appVer" title="Rakenduse versioon">v2.39 · 05.11.2026</div>
+    <div class="ver" id="appVer" title="Rakenduse versioon">v2.40 · 05.11.2026</div>
   </header>
   <section class="worksPage" id="dbModal" aria-labelledby="dbTitle" hidden>
     <div class="dbBox">
@@ -339,7 +341,7 @@ table.types input{padding:4px 5px}
         <button class="btn red sm" id="btnDbSave" title="Salvesta töö ettevõtte andmebaasi (kui töö on sealt avatud, uuendatakse seda)">Salvesta andmebaasi</button>
         <button class="btn ghost sm" id="btnDbOpen">Ava andmebaasist…</button>
       </div>
-      <div class="dbStat" id="dbStat"></div>
+      <div class="dbStatRow"><div class="dbStat" id="dbStat"></div><button class="btn ghost sm" id="btnCloseWork" title="Sulge praegune töö ja alusta tühjalt" hidden>Sulge töö</button></div>
       <div class="row"><label for="s_chord">Kõõlutolerants <span class="u">mm</span></label><input type="number" id="s_chord" min="0.001" step="0.005"></div>
       <div class="row"><label for="s_units">Ühikud</label><select id="s_units">
         <option value="auto">failist</option><option value="mm">mm</option><option value="cm">cm</option><option value="m">m</option><option value="in">toll</option></select></div>

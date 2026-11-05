@@ -93,10 +93,12 @@ async function dbDelete(id) {
   DB.armDel = null; dbUI(); dbRender();
 }
 
-/* ---------- tööde aken ---------- */
+/* ---------- tööde leht (päise nupp „Tööd“; „Valgustähed“ viib programmi tagasi) ---------- */
 function dbMsg(t, bad) { const m = $("dbMsg"); if (!m) return; m.textContent = t || ""; m.classList.toggle("bad", !!bad); m.hidden = !t; }
 function dbOpen() { if (!dbReady()) return; $("dbModal").hidden = false; DB.armDel = null; dbRender(); dbLoad(); setTimeout(() => $("dbSearch").focus(), 30); }
 function dbClose() { $("dbModal").hidden = true; dbMsg(""); }
+/* which page is shown: highlight its header button */
+function navSync() { const works = !$("dbModal").hidden; $("navApp").classList.toggle("on", !works); $("btnDb").classList.toggle("on", works); if (works) { $("btnDb").setAttribute("aria-current", "page"); $("navApp").removeAttribute("aria-current"); } else { $("navApp").setAttribute("aria-current", "page"); $("btnDb").removeAttribute("aria-current"); } }
 const dbWho = (nm, em) => esc(nm || (em || "").split("@")[0] || "");
 function dbRender() {
   $("btnDbSaveNew").disabled = !S.letters.length || !dbReady();
@@ -120,8 +122,9 @@ $("btnDb").addEventListener("click", dbOpen);
 $("btnDbOpen").addEventListener("click", dbOpen);
 $("btnDbSave").addEventListener("click", () => dbSave(false));
 $("btnDbSaveNew").addEventListener("click", () => dbSave(true));
-$("btnDbClose").addEventListener("click", dbClose);
-$("dbModal").addEventListener("mousedown", e => { if (e.target === $("dbModal")) dbClose(); });
+$("navApp").addEventListener("click", dbClose);
+document.querySelector(".brand").addEventListener("click", e => { if (e.target.classList.contains("logo")) dbClose(); });
+new MutationObserver(navSync).observe($("dbModal"), { attributes: true, attributeFilter: ["hidden"] });
 $("dbSearch").addEventListener("input", () => { DB.armDel = null; dbRender(); });
 $("dbRows").addEventListener("click", e => {
   const o = e.target.closest("[data-open]"), d = e.target.closest("[data-del]");

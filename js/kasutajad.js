@@ -157,7 +157,7 @@ $("pwForm").addEventListener("submit", async e => { e.preventDefault(); if (awai
 $("btnPwClose").addEventListener("click", () => { $("pwModal").hidden = true; });
 $("btnAdmClose").addEventListener("click", () => { $("admModal").hidden = true; });
 for (const id of ["pwModal", "admModal"]) $(id).addEventListener("mousedown", e => { if (e.target === $(id)) $(id).hidden = true; });
-document.addEventListener("keydown", e => { if (e.key !== "Escape") return; for (const id of ["dbModal", "pwModal", "admModal"]) if (!$(id).hidden) { $(id).hidden = true; return; } menuToggle(false); });
+document.addEventListener("keydown", e => { if (e.key !== "Escape") return; for (const id of ["pwModal", "admModal"]) if (!$(id).hidden) { $(id).hidden = true; return; } menuToggle(false); });
 $("admGen").addEventListener("click", () => { $("admPass").value = genPass(); $("admPass").type = "text"; });
 $("admNewForm").addEventListener("submit", async e => {
   e.preventDefault();

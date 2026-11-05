@@ -3,7 +3,7 @@
    Kõik failid jagavad ühist globaalset skoopi; laadimise järjekord on index.html-is. */
 /* a moved bar takes the length the letters allow at its new height, then snaps to nearby posts */
 function refitBar(b) { if (b.fixEnds) return; /* stretched by hand: keep its ends */ const ext = Core.barExtent(S.letters, b.y, b.h); if (!ext) return; const e = Core.barEnds(ext, cfg); if (e.x1 - e.x0 <= b.h) return; Object.assign(b, e); Core.snapBars([b], S.posts || []); }
-function syncBarExt() { $("rowBarExt").hidden = !cfg.barExt; }
+function syncBarExt() { $("rowBarExt").hidden = !cfg.barExt; $("jointNote").hidden = !cfg.barExt; $("btnJointAuto").hidden = !(S.bars || []).some(b => b.jm); }
 function refreshMounts() {
   updateDotPosts(); const del = S.mountDel || [];
   const auto = Core.mountHoles(S.letters, S.bars, cfg).concat(Core.dotHoles(S.posts || [], cfg)).filter(m => !del.some(d => Math.abs(d.x - m.x) < 1.5 && Math.abs(d.y - m.y) < 1.5));
@@ -46,7 +46,33 @@ function snapMounts() {
     for (const m of S.mounts) if (m.dot && Math.abs(m.x - q.x) < 0.01) m.y = y0 + Math.round(m.y - y0); }
 }
 function updateDotPosts() { for (const q of S.posts || []) if (q.dot != null && S.letters[q.dot]) q.seg = Core.dotSeg(S.letters[q.dot], S.bars, q); }
-function updateJoints() { if (cfg.barExt) Core.frameJoints(S.letters, S.bars || [], cfg.barSegMax); else for (const b of S.bars || []) b.j = null; }
+/* b.jm = joint places set by hand (dragged, added or removed): they replace the automatic ones of that bar */
+const JOINT_MIN = 50;
+function updateJoints() {
+  if (!cfg.barExt) { for (const b of S.bars || []) b.j = null; return; }
+  Core.frameJoints(S.letters, S.bars || [], cfg.barSegMax);
+  for (const b of S.bars || []) if (b.jm) { const xs = b.jm.filter(x => x > b.x0 + JOINT_MIN - 1e-6 && x < b.x1 - JOINT_MIN + 1e-6).sort((p, q) => p - q); b.j = { xs, fail: false, man: true }; }
+  if ($("btnJointAuto")) $("btnJointAuto").hidden = !(S.bars || []).some(b => b.jm);
+}
+/* joint line under the pointer (6 px on screen) */
+function jointAt(px, py) {
+  if (!on("ly_frame") || !cfg.barExt) return null;
+  for (const b of S.bars || []) { if (!b.j) continue; const Y0 = ty(b.y + b.h / 2) - 6, Y1 = ty(b.y - b.h / 2) + 6; if (py < Y0 || py > Y1) continue;
+    const k = b.j.xs.findIndex(x => Math.abs(px - tx(x)) <= 6); if (k >= 0) return { b, k }; }
+  return null;
+}
+const jointParts = b => { const xs = [b.x0, ...b.j.xs, b.x1]; return xs.slice(1).map((x, i) => Math.round(x - xs[i])).join(" + "); };
+function moveJoint(b, k, x) {
+  const xs = b.j.xs.slice(), lo = (k ? xs[k - 1] : b.x0) + JOINT_MIN, hi = (k < xs.length - 1 ? xs[k + 1] : b.x1) - JOINT_MIN;
+  xs[k] = Math.min(Math.max(Math.round(x), lo), hi); b.jm = xs; b.j = { xs, fail: false, man: true };
+}
+function addJoint(b, x) {
+  const xs = (b.j ? b.j.xs : []).slice(), cuts = [b.x0, ...xs, b.x1]; x = Math.round(x);
+  if (cuts.some(c => Math.abs(c - x) < JOINT_MIN)) { toast(`Jätk peab olema vähemalt ${JOINT_MIN} mm kaugusel profiili otsast ja teisest jätkust.`); return false; }
+  xs.push(x); xs.sort((p, q) => p - q); b.jm = xs; return true;
+}
+function removeJoint(b, k) { const xs = b.j.xs.slice(); xs.splice(k, 1); b.jm = xs; }
+$("btnJointAuto").addEventListener("click", () => { snapshot(); for (const b of S.bars || []) delete b.jm; recompute(); toast("Jätkukohad paigutatud automaatselt."); });
 const barPieces = () => (S.bars || []).reduce((n, b) => n + 1 + ((b.j && b.j.xs.length) || 0), 0);
 /* gap between two neighbouring bars that both reach x and contain y */
 function gapAt(x, y) {

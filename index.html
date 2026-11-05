@@ -114,6 +114,7 @@ body.locked{overflow:hidden}
 .admTabs{display:flex;gap:4px;margin-left:8px}.admTabs .btn.on{background:var(--ink);color:var(--panel)}
 .oigNote{margin:12px 14px 0;color:var(--muted);font-size:13px;line-height:1.45}.oigFoot{padding:0 14px 14px;display:flex;justify-content:flex-end}
 .oigTable th.c,.oigTable td.c{text-align:center;width:90px}.oigTable tr.grp td{font-weight:600;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em;background:var(--paper)}.oigTable input{width:16px;height:16px}
+.jointNote{margin:2px 0 4px;font-size:12px;color:var(--muted);line-height:1.45}.jointNote .btn{margin-top:6px;display:block}
 .dbStatRow{display:flex;align-items:center;gap:8px}.dbStatRow .dbStat{flex:1;min-width:0}.dbStatRow .btn{flex:0 0 auto;margin-left:auto}.btn.arm{background:var(--bad)!important;border-color:var(--bad)!important;color:#fff!important}
 .fileX{font:inherit;font-size:13px;line-height:1;color:var(--muted);background:none;border:1px solid transparent;border-radius:6px;padding:4px 6px;cursor:pointer;margin-left:-8px}.fileX:hover{color:var(--ink);border-color:var(--line)}.fileX.arm{background:var(--bad);border-color:var(--bad);color:#fff}
 .dbStat{font-size:12px;color:var(--muted);line-height:1.4;overflow-wrap:anywhere}.dbStat:empty{display:none}
@@ -267,7 +268,7 @@ table.types input{padding:4px 5px}
         <button role="menuitem" id="miOut">Logi välja</button>
       </div>
     </div>
-    <div class="ver" id="appVer" title="Rakenduse versioon">v2.43 · 05.11.2026</div>
+    <div class="ver" id="appVer" title="Rakenduse versioon">v2.44 · 05.11.2026</div>
   </header>
   <section class="worksPage" id="dbModal" aria-labelledby="dbTitle" hidden>
     <div class="dbBox">
@@ -416,6 +417,7 @@ table.types input{padding:4px 5px}
       <div class="orow"><label for="o_frameColor">Värv</label><span class="sw3"><i class="chip" id="c_frameColor"></i><input type="text" id="o_frameColor" list="dl_ral" autocomplete="off" placeholder="nt RAL 7035"></span></div>
       <div class="orow"><label for="o_hooks">Konksud</label><input type="text" id="o_hooks" autocomplete="off"></div>
       <div class="orow"><label for="s_barExt">Raami jätk</label><input type="checkbox" id="s_barExt" style="justify-self:start"></div>
+      <p class="jointNote" id="jointNote" hidden>Jätkukohta (punane joon profiilil) saab lohistada. Topeltklikk profiilil lisab jätku, topeltklikk jätkul eemaldab selle. <button class="btn ghost sm" id="btnJointAuto" hidden>Taasta automaatsed jätkukohad</button></p>
       <div class="subh">Raami paigutuse seaded</div>
       <div class="row"><label for="s_profile">Raami laius <span class="u">mm</span></label><input type="number" id="s_profile" min="5" step="1"></div>
       <div class="row"><label for="s_barGap">Max raamivahe <span class="u">mm</span></label><input type="number" id="s_barGap" min="50" step="10"></div>

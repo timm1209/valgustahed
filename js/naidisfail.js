@@ -87,7 +87,7 @@ function nfUI() {
   $("nfStat").classList.toggle("on", has); $("nfStat").classList.remove("warn");
   $("btnNfIn").textContent = has ? "Vaheta mall…" : "Laadi mall…";
   $("btnNfDel").hidden = !has;
-  $("nfUseRow").hidden = !has; $("nfFrameRow").hidden = !has;
+  $("nfUseRow").hidden = !has; $("nfFrameRow").hidden = !has; $("nfCutRow").hidden = !has;
   if (window.__fmtLabels) window.__fmtLabels();
   updateExpNote();
 }
@@ -183,6 +183,41 @@ function nfFramePart(x0, y0, signW) {
   const sx = fx - fr.origin[0], sy = -y0;
   const b = fr.box; return { part: { txt: fr.txt, shift: [sx, sy] }, box: [b[0] + sx, b[1] + sy, b[2] + sx, b[3] + sy] };
 }
+/* production contours under a line below the drawing: face cut line + groove mirrored (cut from the back) under the sign,
+   the base next to them under the frame drawing; each material block gets its material name above it.
+   lowY = lowest point of what is already on the sheet (template coordinates, letters' bottom-left = 0;0) */
+function nfCutPart(x0, y0, signW, hT, lowY, rightX) {
+  if (!$("s_nfCut").checked || !S.letters.length || !(S.prof || []).length || S.prof.some(p => !p)) return null;
+  const x1L = Math.max(...S.letters.map(L => L.bb.x1)), wL = x1L - x0;
+  const gap = Math.max(40, hT * 0.25), th = Math.max(10, Math.min(60, hT * 0.1));
+  const lineY = lowY - gap, m = Math.max(40, 0.08 * Math.max(signW, hT)), bx2 = 2 * signW;
+  const T = (pts, mir, ox, oy) => pts.map(p => [(mir ? x0 + x1L - p[0] : p[0]) - x0 + ox, p[1] - y0 + oy]);
+  const letters = [], prof = [], labels = [];
+  /* letters grouped by material: one row per material, rows stacked downwards */
+  const rows = (matOf, mir, ox, keys) => {
+    const by = new Map(); S.letters.forEach((L, i) => { const k = matOf(i); if (!by.has(k)) by.set(k, []); by.get(k).push(i); });
+    let top = lineY - gap * 0.6;
+    for (const [mat, idx] of by) {
+      labels.push([ox, top - th, mat]);
+      const oy = top - th - gap * 0.5 - hT;
+      for (const i of idx) {
+        const p = S.prof[i], q = { type: p.type, cont: [], base: [], groove: [] };
+        for (const k of keys) q[k] = (p[k] || []).map(lp => T(lp, mir, ox, oy));
+        letters.push({ loops: [] }); prof.push(q);
+      }
+      top = oy - gap;
+    }
+    return top;
+  };
+  const faceMat = i => String(grpOf(i).faceMat || "").trim() || "Esipind";
+  const b1 = rows(faceMat, true, 0, ["cont", "groove"]);
+  const b2 = rows(i => backMat(grpOf(i)) || "Põhi", false, bx2, ["base"]);
+  const x2 = Math.max(rightX, bx2 + wL) + m;
+  const txt = Core.writeDXF({ layerNames: exportLayerNames(), only: new Set(["KONTUUR", "SOON", "POHI", "INFO"]), curveMode: cfg.curveMode || "lines", chordTol: cfg.chordTol || 0.01,
+    letters, chains: [], leds: [], holes: [], bars: [], posts: [], mounts: null, types: cfg.types, holeD: cfg.holeD, prof, drainMode: cfg.drainMode,
+    extra: g => { g.line([-m, lineY], [x2, lineY], "INFO"); for (const [x, y, s] of labels) g.text(x, y, th, s, "INFO"); } });
+  return { part: { txt, shift: [0, 0] }, box: [-m, Math.min(b1, b2), x2, lineY] };
+}
 function nfSaveFrameOpt() { try { localStorage.setItem("valg_nfframe", $("s_nfFrame").checked ? "1" : "0"); } catch (e) {} }
 
 /* ---------- käivitus ---------- */
@@ -193,6 +228,8 @@ $("s_useNf").addEventListener("change", () => { nfSaveUse(); if (window.__fmtLab
 try { $("s_useNf").checked = localStorage.getItem("valg_nfuse") !== "0"; } catch (e) { $("s_useNf").checked = true; }
 try { $("s_nfFrame").checked = localStorage.getItem("valg_nfframe") !== "0"; } catch (e) { $("s_nfFrame").checked = true; }
 $("s_nfFrame").addEventListener("change", () => { nfSaveFrameOpt(); updateExpNote(); });
+try { $("s_nfCut").checked = localStorage.getItem("valg_nfcut") !== "0"; } catch (e) { $("s_nfCut").checked = true; }
+$("s_nfCut").addEventListener("change", () => { try { localStorage.setItem("valg_nfcut", $("s_nfCut").checked ? "1" : "0"); } catch (e) {} updateExpNote(); });
 nfUI();
 nfStore("readonly", st => st.get(NF_KEY)).then(v => {
   if (!v || !v.bytes) return;

@@ -192,9 +192,9 @@ function nfCutPart(x0, y0, signW, hT, lowY, rightX) {
   const gap = Math.max(40, hT * 0.25), th = Math.max(10, Math.min(60, hT * 0.1));
   const lineY = lowY - gap, m = Math.max(40, 0.08 * Math.max(signW, hT)), bx2 = 2 * signW;
   const T = (pts, mir, ox, oy) => pts.map(p => [(mir ? x0 + x1L - p[0] : p[0]) - x0 + ox, p[1] - y0 + oy]);
-  const letters = [], prof = [], labels = [];
+  const letters = [], prof = [], labels = [], mounts = [];
   /* letters grouped by material: one row per material, rows stacked downwards */
-  const rows = (matOf, mir, ox, keys) => {
+  const rows = (matOf, mir, ox, keys, holes) => {
     const by = new Map(); S.letters.forEach((L, i) => { const k = matOf(i); if (!by.has(k)) by.set(k, []); by.get(k).push(i); });
     let top = lineY - gap * 0.6;
     for (const [mat, idx] of by) {
@@ -204,6 +204,8 @@ function nfCutPart(x0, y0, signW, hT, lowY, rightX) {
         const p = S.prof[i], q = { type: p.type, cont: [], base: [], groove: [] };
         for (const k of keys) q[k] = (p[k] || []).map(lp => T(lp, mir, ox, oy));
         letters.push({ loops: [] }); prof.push(q);
+        /* base: the mounting holes that sit in this letter go with it */
+        if (holes) for (const mh of S.mounts || []) if (Core.inLetter(S.letters[i], mh.x, mh.y)) { const [hp] = T([[mh.x, mh.y]], mir, ox, oy); mounts.push({ x: hp[0], y: hp[1] }); }
       }
       top = oy - gap;
     }
@@ -211,10 +213,10 @@ function nfCutPart(x0, y0, signW, hT, lowY, rightX) {
   };
   const faceMat = i => String(grpOf(i).faceMat || "").trim() || "Esipind";
   const b1 = rows(faceMat, true, 0, ["cont", "groove"]);
-  const b2 = rows(i => backMat(grpOf(i)) || "Põhi", false, bx2, ["base"]);
+  const b2 = rows(i => backMat(grpOf(i)) || "Põhi", false, bx2, ["base"], true);
   const x2 = Math.max(rightX, bx2 + wL) + m;
-  const txt = Core.writeDXF({ layerNames: exportLayerNames(), only: new Set(["KONTUUR", "SOON", "POHI", "INFO"]), curveMode: cfg.curveMode || "lines", chordTol: cfg.chordTol || 0.01,
-    letters, chains: [], leds: [], holes: [], bars: [], posts: [], mounts: null, types: cfg.types, holeD: cfg.holeD, prof, drainMode: cfg.drainMode,
+  const txt = Core.writeDXF({ layerNames: exportLayerNames(), only: new Set(["KONTUUR", "SOON", "POHI", "KINNITUS", "INFO"]), curveMode: cfg.curveMode || "lines", chordTol: cfg.chordTol || 0.01,
+    letters, chains: [], leds: [], holes: [], bars: [], posts: [], mounts, mountD: cfg.mountD, types: cfg.types, holeD: cfg.holeD, prof, drainMode: cfg.drainMode,
     extra: g => { g.line([-m, lineY], [x2, lineY], "INFO"); for (const [x, y, s] of labels) g.text(x, y, th, s, "INFO"); } });
   return { part: { txt, shift: [0, 0] }, box: [-m, Math.min(b1, b2), x2, lineY] };
 }

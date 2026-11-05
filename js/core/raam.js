@@ -299,9 +299,11 @@ function vcrossings(L, x) { const ys = []; for (const lp of L.loops) for (let i 
 /* post into a dot: from the nearest bar to 5 mm short of the dot's far edge (over the whole post width), so it stays hidden;
    q.hy = the part of the post inside the dot (for the two mounting holes) */
 const DOT_EDGE = 5;
+/* q.ty (a post added by hand above or below a bar): the post goes from the nearest bar into the stroke at height ty, to 5 mm short of that stroke's far edge */
 function dotSeg(L, bars, q) {
-  const cy = (L.bb.y0 + L.bb.y1) / 2, xs = [q.x - q.w / 2 + 0.01, q.x, q.x + q.w / 2 - 0.01];
-  const iv = xs.map(x => vcrossings(L, x));
+  const cy = q.ty != null ? q.ty : (L.bb.y0 + L.bb.y1) / 2, xs = [q.x - q.w / 2 + 0.01, q.x, q.x + q.w / 2 - 0.01];
+  let iv = xs.map(x => vcrossings(L, x));
+  if (q.ty != null) { const at = iv.map(v => v.filter(r => cy >= r[0] - 0.01 && cy <= r[1] + 0.01)); if (at.every(v => v.length)) iv = at; }
   const top = iv.every(v => v.length) ? Math.min(...iv.map(v => Math.max(...v.map(r => r[1])))) : L.bb.y1, bot = iv.every(v => v.length) ? Math.max(...iv.map(v => Math.min(...v.map(r => r[0])))) : L.bb.y0;
   let best = null;
   for (const b of bars) {

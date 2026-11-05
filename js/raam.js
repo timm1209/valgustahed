@@ -61,6 +61,16 @@ function splitPost(q) {
   const i = S.posts.indexOf(q); S.posts.splice(i, 1, ...parts); return parts;
 }
 function partAt(parts, y) { return parts.find(p => { const g = Core.postSegs(S.bars, p)[0]; return g && y >= g[0] - 1 && y <= g[1] + 1; }) || parts[0]; }
+/* post above the top bar or below the bottom bar (or any bar, outside a gap): starts at the nearest bar and goes into the letter that was clicked */
+function addFreePost(x, y) {
+  const li = S.letters.findIndex(L => Core.inLetter(L, x, y)); if (li < 0) { toast("Kliki tähe sisse profiili kohale või alla, või kahe profiili vahele."); return; }
+  const w = cfg.profile; const px = Core.snapPost(S.letters, S.bars, x, w, Math.max(3 * w, 60), y - w, y + w); if (px == null) return;
+  const nq = { x: px, w, dot: li, ty: y, free: true }; nq.seg = Core.dotSeg(S.letters[li], S.bars, nq);
+  if (!nq.seg) { toast("Siia ei saa pulka panna: selle koha all või kohal pole profiili."); return; }
+  if ((S.posts || []).some(q => q !== nq && Math.abs(q.x - px) < w && Core.postSegs(S.bars, q).some(g => g[0] < nq.seg[1] && g[1] > nq.seg[0]))) { toast("Siin on pulk juba olemas."); return; }
+  snapshot(); S.posts = (S.posts || []).concat([nq]); S.manual = true;
+  S.sel = { k: "post", i: S.posts.indexOf(nq) }; S.multi = [nq]; recompute(); toast(`Pulk lisatud profiilist ${nq.up ? "üles" : "alla"} (${Math.round(nq.seg[1] - nq.seg[0])} mm)`);
+}
 function removePostAt(q, y) { const parts = splitPost(q); const p = partAt(parts, y); S.posts.splice(S.posts.indexOf(p), 1); }
 /* frame profile size: existing bars and posts keep their places, only the section changes */
 function syncFrameProf() { const sel = $("s_frameProf"); if (!sel) return; const v = String(cfg.profile); sel.value = [...sel.options].some(o => o.value === v) ? v : ""; }

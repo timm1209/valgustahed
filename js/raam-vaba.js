@@ -86,11 +86,15 @@ function barRailLinks(b) {
     if (P[0] < b.x0 - 1 || P[0] > b.x1 + 1) continue;
     for (const s of [1, -1]) if (Math.abs(P[1] - (b.y + s * b.h / 2)) < 1) { out.push(Object.assign(o, { side: s })); break; }
   }
+  /* drawn vertical posts with an end on this bar's edge */
+  for (const q of S.posts || []) { if (!q.fixed || !q.seg || q.link === false || q.x < b.x0 - 1 || q.x > b.x1 + 1) continue;
+    for (const end of [0, 1]) for (const s of [1, -1]) if (Math.abs(q.seg[end] - (b.y + s * b.h / 2)) < 1) out.push({ post: q, end, side: s }); }
   return out;
 }
 /* moved / stretched bar: attached rail ends follow; an edge end slides along its rail (the rail keeps its angle, the length changes), a corner end goes to the new bar end */
 function barRailFollow(b, links) {
   for (const l of links || []) {
+    if (l.post) { const q = l.post, v = b.y + l.side * b.h / 2, min = q.w * 2; q.seg[l.end] = l.end ? Math.max(v, q.seg[0] + min) : Math.min(v, q.seg[1] - min); continue; }
     if (l.corner != null) { l.r[l.k] = barEndPt(b, l.corner); continue; }
     const Q = l.k === "a" ? l.r.b : l.r.a, dir = RV.sub(l.P0, l.Q0); if (Math.abs(dir[1]) < 1e-6) continue;
     const ye = b.y + l.side * b.h / 2, t = (ye - Q[1]) / dir[1]; if (t <= 0.05) continue; /* the bar passed the other end */

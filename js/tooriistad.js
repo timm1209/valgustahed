@@ -45,6 +45,8 @@ cv.addEventListener("pointerdown", e => {
   if (S.tool === "led") { const li = letterAt(x, y); if (li < 0) { toast("LED-i saab lisada ainult kuju sisse."); return; } snapshot(); const t = typeOf(S.letters[li]); S.leds.push({ x, y, a: 0, t, L: li }); S.manual = true; S.sel = { k: "led", i: S.leds.length - 1 }; recompute(); return; }
   if (S.tool === "hole") { const li = letterAt(x, y); if (li < 0) { toast("Veeauk peab olema kuju sees."); return; } snapshot(); S.holes.push({ x, y, L: li }); S.manual = true; recompute(); return; }
   if (S.tool === "screw") { const p = frameSnap(x, y); if (!p) { toast("Kinnitusava peab olema raamil (profiili või pulga peal)."); return; } snapshot(); S.mountAdd = (S.mountAdd || []).concat([p]); S.manual = true; recompute(); toast("Kinnitusava lisatud"); return; }
+  const pe = S.tool === "select" ? postEndAt(px, py) : null;
+  if (pe) { snapshot(); drag = postEndStart(pe); S.sel = { k: "post", i: S.posts.indexOf(drag.q) }; S.multi = [drag.q]; draw(); return; }
   const re = S.tool === "select" ? railEndAt(px, py) : null;
   if (re) { S.sel = { k: "rail", i: S.rails.indexOf(re.r) }; snapshot(); drag = railDragStart(re); draw(); return; }
   const jt = S.tool === "select" ? jointAt(px, py) : null;
@@ -66,7 +68,7 @@ cv.addEventListener("pointerdown", e => {
 cv.addEventListener("pointermove", e => {
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
   const x = wx(e.offsetX), y = wy(e.offsetY); $("stCursor").textContent = `X ${x.toFixed(1)} · Y ${y.toFixed(1)} mm`;
-  if (S.tool === "select" && !drag) cv.style.cursor = barEndAt(e.offsetX, e.offsetY) || jointAt(e.offsetX, e.offsetY) ? "ew-resize" : "default";
+  if (S.tool === "select" && !drag) cv.style.cursor = barEndAt(e.offsetX, e.offsetY) || jointAt(e.offsetX, e.offsetY) ? "ew-resize" : postEndAt(e.offsetX, e.offsetY) ? "ns-resize" : "default";
   if (S.tool === "rail" && !drag) { railMove(x, y, e); return; }
   if (S.tool === "select" && !drag && railEndAt(e.offsetX, e.offsetY)) cv.style.cursor = "move";
   if (S.tool === "measure" && !drag) { const p = measPoint(e.offsetX, e.offsetY, e.shiftKey); S.measHover = p; if (S.meas && !S.meas.done) S.meas.b = p; draw(); return; }
@@ -76,6 +78,7 @@ cv.addEventListener("pointermove", e => {
   else if (drag.k === "move") { drag.o.x = x + drag.dx; drag.o.y = y + drag.dy; drag.moved = true; draw(); }
   else if (drag.k === "barEnd") { const b = drag.b, xr = Math.round(x); if (drag.end === 0) b.x0 = Math.min(xr, b.x1 - b.h * 2); else b.x1 = Math.max(xr, b.x0 + b.h * 2); b.fixEnds = true; barRailFollow(b, drag.links); updateJoints(); refreshMounts(); drag.moved = true; $("hint").textContent = `Profiili pikkus ${Math.round(b.x1 - b.x0)} mm`; draw(); }
   else if (drag.k === "railEnd") railDragMove(drag, x, y, e);
+  else if (drag.k === "postEnd") postEndMove(drag, y);
   else if (drag.k === "joint") {
     /* magnetic alignment (8 px on screen) with the joints of the other bars and with the posts; Alt = no snapping */
     let nx = x, best = null; S.guide = null;
@@ -97,6 +100,7 @@ const endDrag = e => {
   if (d.k === "move") { if (d.moved) { const li = letterAt(d.o.x, d.o.y); if (li >= 0) d.o.L = li; S.manual = true; recompute(); } else { undo.pop(); draw(); } }
   else if (d.k === "post") { S.guide = null; if (d.moved) { Core.snapBars(S.bars, [d.q]); S.manual = true; recompute(); } else undo.pop(); }
   else if (d.k === "railEnd") railDragEnd(d);
+  else if (d.k === "postEnd") { if (d.moved) { S.manual = true; recompute(); toast(`Pulk ${postLenTxt(d.q)} mm`); } else undo.pop(); setTool(S.tool); }
   else if (d.k === "joint") { S.guide = null; if (d.moved) { S.manual = true; recompute(); toast(`Jätkuga osad: ${jointParts(d.b)} mm`); } else undo.pop(); setTool(S.tool); }
   else if (d.k === "bar") { if (d.moved) { S.manual = true; recompute(); } else undo.pop(); }
   else if (d.k === "barEnd") { if (d.moved) { S.manual = true; recompute(); toast(`Profiil ${Math.round(d.b.x1 - d.b.x0)} mm`); } else undo.pop(); }

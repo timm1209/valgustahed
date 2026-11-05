@@ -100,6 +100,30 @@ function addFreePost(x, y) {
   snapshot(); S.posts = (S.posts || []).concat([nq]); S.manual = true;
   S.sel = { k: "post", i: S.posts.indexOf(nq) }; S.multi = [nq]; recompute(); toast(`Pulk lisatud profiilist ${nq.up ? "üles" : "alla"} (${Math.round(nq.seg[1] - nq.seg[0])} mm)`);
 }
+/* post end under the pointer (select tool): drag to make the post longer or shorter */
+function postEndAt(px, py) {
+  if (!on("ly_frame")) return null;
+  for (const q of S.posts || []) { if (Math.abs(px - tx(q.x)) > q.w / 2 * view.s + 4) continue;
+    for (const g of Core.postSegs(S.bars, q)) { if (Math.abs(py - ty(g[1])) <= 7) return { q, end: 1, y: g[1] }; if (Math.abs(py - ty(g[0])) <= 7) return { q, end: 0, y: g[0] }; } }
+  return null;
+}
+/* start of an end drag: the piece becomes a drawn post with its own span (it no longer follows the bars or the dot) */
+function postEndStart(h) {
+  const parts = splitPost(h.q), p = partAt(parts, h.y), g = Core.postSegs(S.bars, p).find(s => Math.abs(s[h.end] - h.y) < 1) || Core.postSegs(S.bars, p)[0];
+  if (!p.fixed) { const i = S.posts.indexOf(p), nq = { x: p.x, w: p.w, seg: g.slice(), fixed: true }; S.posts.splice(i, 1, nq); return { k: "postEnd", q: nq, end: h.end, moved: false }; }
+  p.seg = g.slice(); return { k: "postEnd", q: p, end: h.end, moved: false };
+}
+function postEndMove(dg, y) {
+  const q = dg.q, tol = 8 / view.s; let v = Math.round(y), snap = null;
+  /* onto a bar edge close by */
+  for (const b of S.bars || []) { if (q.x < b.x0 - 1 || q.x > b.x1 + 1) continue; for (const yy of [b.y - b.h / 2, b.y + b.h / 2]) if (Math.abs(yy - y) < tol && (!snap || Math.abs(yy - y) < Math.abs(snap - y))) snap = yy; }
+  if (snap != null) v = snap;
+  const min = q.w * 2; if (dg.end) q.seg[1] = Math.max(v, q.seg[0] + min); else q.seg[0] = Math.min(v, q.seg[1] - min);
+  dg.moved = true; refreshMounts(); $("hint").textContent = `Pulga pikkus ${postLenTxt(q)} mm`; draw();
+}
+/* length of a drawn post; pieces when a horizontal profile crosses it */
+function postLenTxt(q) { return Core.postSegs(S.bars, q).map(g => Math.round(g[1] - g[0])).join(" + ");
+}
 function removePostAt(q, y) { const parts = splitPost(q); const p = partAt(parts, y); S.posts.splice(S.posts.indexOf(p), 1); }
 /* frame profile size: existing bars and posts keep their places, only the section changes */
 function syncFrameProf() { const sel = $("s_frameProf"); if (!sel) return; const v = String(cfg.profile); sel.value = [...sel.options].some(o => o.value === v) ? v : ""; }

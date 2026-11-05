@@ -101,6 +101,7 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 body.locked{overflow:hidden}
 .authGate{position:fixed;inset:0;z-index:90;background:var(--paper);display:flex;align-items:center;justify-content:center;padding:16px}.authGate[hidden]{display:none}
 .gBox{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 48px rgba(0,0,0,.12);width:min(400px,100%);padding:22px 8px 12px}
+.brand .logo{height:28px;width:auto;display:block}.gBrand .logo{height:44px;width:auto;display:block}.logo~i{display:none}
 .gBrand{display:flex;align-items:center;gap:10px;justify-content:center;font-family:var(--f-display);font-weight:700;font-size:28px;letter-spacing:.02em;margin-bottom:8px}.gBrand i{width:12px;height:12px;border-radius:50%;background:var(--led);box-shadow:0 0 0 4px color-mix(in srgb,var(--led) 22%,transparent)}
 .gBox .dbForm>div{max-width:none}.gBox .dbForm .btn{width:100%}.gNote{margin:0;color:var(--muted);font-size:13px;line-height:1.45;text-align:center}.gNote a,.gFoot a{color:var(--skel)}.gFoot{margin:6px 0 0;text-align:center;font-size:12px}.gFoot a{color:var(--muted)}
 #gWait{padding:18px}
@@ -241,7 +242,7 @@ table.types input{padding:4px 5px}
 <div id="vtView">
 <div class="app">
   <header class="top">
-    <div class="brand"><i></i>Valgustähed</div>
+    <div class="brand"><img class="logo" src="img/logo.png" alt="" onerror="this.remove()"><i></i>Valgustähed</div>
     <div class="file" id="fileInfo">Näidis</div>
     <div class="sp"></div>
     <button class="btn ghost sm" id="btnDb" title="Tehtud tööd andmebaasis" hidden>Tööd</button>
@@ -253,7 +254,7 @@ table.types input{padding:4px 5px}
         <button role="menuitem" id="miOut">Logi välja</button>
       </div>
     </div>
-    <div class="ver" id="appVer" title="Rakenduse versioon">v2.35 · 05.11.2026</div>
+    <div class="ver" id="appVer" title="Rakenduse versioon">v2.36 · 05.11.2026</div>
   </header>
 
   <main class="stage" id="stage">
@@ -524,7 +525,7 @@ table.types input{padding:4px 5px}
 
 <div class="authGate" id="authGate">
   <div class="gBox">
-    <div class="gBrand"><i></i>Valgustähed</div>
+    <div class="gBrand"><img class="logo" src="img/logo.png" alt="" onerror="this.remove()"><i></i>Valgustähed</div>
     <div class="dbMsg" id="gMsg" hidden></div>
     <div id="gWait"><p class="gNote">Ühendun…</p></div>
     <form class="dbForm" id="gLoginForm"><div id="gLogin" hidden>

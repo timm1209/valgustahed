@@ -27,7 +27,7 @@ const OIGUSED = [
   { g: "Toimingud", k: "t_kliendi_pdf", nimi: "PDF kliendile", el: ["btnPdf"] },
   { g: "Toimingud", k: "t_mall", nimi: "Mall ja eksport malli peale", el: ["nfBox"] }
 ];
-const OIG_TOOLS = ["led", "hole", "bar", "post", "screw", "delete"];
+const OIG_TOOLS = ["led", "hole", "bar", "post", "rail", "screw", "delete"];
 const OIG = { perms: null, grupid: {}, dirty: false, viewAs: null };   /* viewAs: admin vaatab rakendust kui see grupp (ainult kuva, andmebaas kontrollib ikka admini järgi) */
 
 /* ---------- kas tohib ---------- */

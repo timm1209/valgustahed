@@ -1,0 +1,163 @@
+/* Valgustähed — raam-vaba.js
+   Vaba kujuga raam: profiilid suvalise nurga all (S.rails = [{ a:[x,y], b:[x,y], w }]).
+   Joonistatakse ahelana nurk-nurga haaval; kokku saavad profiilid lõigatakse nurgalõikega (gärung),
+   horisontaalse profiili või pulga vastu tulev ots lõigatakse selle servaga paralleelselt.
+   Kinnitusavad tulevad automaatselt profiili keskjoonele tähtede sisse.
+   Kõik failid jagavad ühist globaalset skoopi; laadimise järjekord on index.html-is. */
+const RV = {
+  sub: (p, q) => [p[0] - q[0], p[1] - q[1]], add: (p, q) => [p[0] + q[0], p[1] + q[1]], mul: (p, k) => [p[0] * k, p[1] * k],
+  len: p => Math.hypot(p[0], p[1]), dot: (p, q) => p[0] * q[0] + p[1] * q[1], cross: (p, q) => p[0] * q[1] - p[1] * q[0],
+  norm: p => { const l = Math.hypot(p[0], p[1]) || 1; return [p[0] / l, p[1] / l]; }
+};
+const RAIL_EPS = 0.5;
+const hasFrame = () => (S.bars || []).length > 0 || (S.rails || []).length > 0;
+const near = (p, q, e = RAIL_EPS) => Math.abs(p[0] - q[0]) <= e && Math.abs(p[1] - q[1]) <= e;
+
+/* cut line direction at one end of a rail (end 0 = a, 1 = b) */
+function railCut(r, end) {
+  const P = end ? r.b : r.a, Q = end ? r.a : r.b, u = RV.norm(RV.sub(Q, P)), sq = [-u[1], u[0]];
+  for (const o of S.rails || []) {
+    if (o === r) continue; const other = near(o.a, P) ? o.b : near(o.b, P) ? o.a : null; if (!other) continue;
+    const v = RV.norm(RV.sub(other, P));
+    if (Math.abs(RV.cross(u, v)) < 1e-6) return { dir: sq, kind: "straight" }; /* straight continuation: square cut */
+    return { dir: RV.norm(RV.add(u, v)), kind: "miter" };
+  }
+  for (const b of S.bars || []) if (P[0] >= b.x0 - RAIL_EPS && P[0] <= b.x1 + RAIL_EPS && (Math.abs(P[1] - (b.y + b.h / 2)) < RAIL_EPS || Math.abs(P[1] - (b.y - b.h / 2)) < RAIL_EPS)) return { dir: [1, 0], kind: "bar" };
+  for (const q of S.posts || []) for (const [lo, hi] of Core.postSegs(S.bars, q)) if (P[1] >= lo - RAIL_EPS && P[1] <= hi + RAIL_EPS && (Math.abs(P[0] - (q.x - q.w / 2)) < RAIL_EPS || Math.abs(P[0] - (q.x + q.w / 2)) < RAIL_EPS)) return { dir: [0, 1], kind: "post" };
+  return { dir: sq, kind: "free" };
+}
+/* outline (4 corners), lengths and cut angles of a rail */
+function railGeom(r) {
+  const u = RV.norm(RV.sub(r.b, r.a)), n = [-u[1], u[0]], h = (r.w || cfg.profile) / 2, L = RV.len(RV.sub(r.b, r.a));
+  const ends = [railCut(r, 0), railCut(r, 1)];
+  const hitT = (p0, P, c) => { const den = RV.cross(u, c.dir); if (Math.abs(den) < 1e-6) return RV.dot(RV.sub(P, p0), u); return RV.cross(RV.sub(P, p0), c.dir) / den; };
+  const side = s => { const p0 = RV.add(r.a, RV.mul(n, s * h)); const t0 = hitT(p0, r.a, ends[0]), t1 = hitT(p0, r.b, ends[1]); return [RV.add(p0, RV.mul(u, t0)), RV.add(p0, RV.mul(u, t1)), t1 - t0]; };
+  const [a1, b1, l1] = side(1), [a2, b2, l2] = side(-1);
+  const ang = c => { const v = Math.abs(RV.dot(c.dir, n)); return Math.round(Math.acos(Math.min(1, v)) * 180 / Math.PI * 2) / 2; }; /* saw angle, 0,5° steps */
+  return { poly: [a1, b1, b2, a2], len: L, long: Math.max(l1, l2), short: Math.min(l1, l2), angA: ang(ends[0]), angB: ang(ends[1]), ends, u, n, h };
+}
+const railDeg = v => (Math.round(v * 10) / 10).toString().replace(".", ",") + "°";
+/* point inside the rail outline */
+function inPoly(p, poly) { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; }
+function railAt(x, y) { if (!on("ly_frame")) return -1; const rs = S.rails || []; for (let i = rs.length - 1; i >= 0; i--) if (inPoly([x, y], railGeom(rs[i]).poly)) return i; return -1; }
+/* rail end handle under the pointer (screen px) */
+function railEndAt(px, py) {
+  if (!on("ly_frame")) return null;
+  for (const r of S.rails || []) for (const k of ["a", "b"]) if (Math.hypot(tx(r[k][0]) - px, ty(r[k][1]) - py) <= 8) return { r, k, p: r[k].slice() };
+  return null;
+}
+
+/* ---------- automatic mounting holes on the rail centre line, inside the letters ---------- */
+function railHoles() {
+  const out = [], d = cfg.mountD || 6, lim = cfg.mountTwo || 160;
+  for (const r of S.rails || []) {
+    const g = railGeom(r), st = 1, e = Math.max(cfg.mountEnd > 0 ? cfg.mountEnd : g.h, d / 2 + 2), iv = [];
+    let cur = null;
+    for (let t = 0; t <= g.len + 1e-6; t += st) {
+      const p = RV.add(r.a, RV.mul(g.u, t)), pts = [p, RV.add(p, RV.mul(g.n, g.h - 0.5)), RV.add(p, RV.mul(g.n, -(g.h - 0.5)))];
+      const li = S.letters.findIndex(L => pts.every(q => Core.inLetter(L, q[0], q[1])));
+      if (li >= 0 && cur && cur.li === li) cur.t1 = t; else { if (cur) iv.push(cur); cur = li >= 0 ? { li, t0: t, t1: t } : null; }
+    }
+    if (cur) iv.push(cur);
+    for (const v of iv) {
+      const a = Math.max(v.t0, e), c = Math.min(v.t1, g.len - e), wd = v.t1 - v.t0; if (c - a < d + 4) continue;
+      const ts = wd > lim ? [v.t0 + wd / 4, v.t0 + wd * 3 / 4] : [(v.t0 + v.t1) / 2];
+      for (let t of ts) { t = Math.min(Math.max(t, a + d / 2 + 2), c - d / 2 - 2); const p = RV.add(r.a, RV.mul(g.u, t));
+        if (!out.some(o => Math.hypot(o.x - p[0], o.y - p[1]) < d * 1.5)) out.push({ x: p[0], y: p[1], L: v.li, w: wd, rail: true }); }
+    }
+  }
+  return out;
+}
+
+/* ---------- cut list ---------- */
+function railCutList() {
+  const cnt = new Map();
+  for (const r of S.rails || []) { const g = railGeom(r), A = [g.angA, g.angB].sort((p, q) => q - p), k = `${Math.round(g.long)}|${A[0]}|${A[1]}`; cnt.set(k, (cnt.get(k) || 0) + 1); }
+  return [...cnt.entries()].map(([k, n]) => { const [len, a, b] = k.split("|").map(Number); return { len, a, b, n }; }).sort((p, q) => q.len - p.len);
+}
+const railLine = c => `L-${c.len}mm` + (c.a || c.b ? ` ${railDeg(c.a)}/${railDeg(c.b)}` : "") + `, ${c.n}tk`;
+const railLenTotal = () => (S.rails || []).reduce((s, r) => s + railGeom(r).long, 0);
+
+/* ---------- drawing (2D) ---------- */
+function drawRails() {
+  if (!on("ly_frame")) return;
+  const rs = S.rails || [];
+  rs.forEach((r, i) => {
+    const g = railGeom(r), sel = S.sel && S.sel.k === "rail" && S.sel.i === i;
+    ctx.beginPath(); g.poly.forEach((p, k) => k ? ctx.lineTo(tx(p[0]), ty(p[1])) : ctx.moveTo(tx(p[0]), ty(p[1]))); ctx.closePath();
+    ctx.fillStyle = C.frame + "33"; ctx.fill(); ctx.lineWidth = sel ? 2.2 : 1; ctx.strokeStyle = sel ? C.skel : C.frame; ctx.stroke();
+    /* length along the rail */
+    const m = RV.mul(RV.add(r.a, r.b), 0.5); let ang = Math.atan2(-(r.b[1] - r.a[1]), r.b[0] - r.a[0]); if (ang > Math.PI / 2) ang -= Math.PI; if (ang < -Math.PI / 2) ang += Math.PI;
+    if (g.len * view.s > 40) { ctx.save(); ctx.translate(tx(m[0]), ty(m[1])); ctx.rotate(ang); ctx.fillStyle = C.muted; ctx.font = "11px " + css("--f-mono"); ctx.textAlign = "center"; ctx.fillText(String(Math.round(g.long)), 0, -g.h * view.s - 4); ctx.restore(); }
+    if (S.tool === "select" || S.tool === "rail") { ctx.fillStyle = C.frame; for (const p of [r.a, r.b]) ctx.fillRect(tx(p[0]) - 3.5, ty(p[1]) - 3.5, 7, 7); }
+  });
+  /* chain being drawn */
+  const d = S.railDraft;
+  if (d && d.pts.length && d.cur) {
+    const a = d.pts[d.pts.length - 1], b = d.cur, w = cfg.profile, u = RV.norm(RV.sub(b, a)), n = RV.mul([-u[1], u[0]], w / 2);
+    ctx.save(); ctx.setLineDash([6, 4]); ctx.strokeStyle = C.skel; ctx.lineWidth = 1.4; ctx.beginPath();
+    for (const p of [RV.add(a, n), RV.add(b, n), RV.sub(b, n), RV.sub(a, n)]) ctx.lineTo(tx(p[0]), ty(p[1])); ctx.closePath(); ctx.stroke(); ctx.restore();
+    const L = RV.len(RV.sub(b, a)), deg = Math.round(Math.atan2(b[1] - a[1], b[0] - a[0]) * 1800 / Math.PI) / 10;
+    ctx.fillStyle = C.skel; ctx.font = "12px " + css("--f-mono"); ctx.textAlign = "left"; ctx.fillText(`${Math.round(L)} mm · ${String(deg).replace(".", ",")}°`, tx(b[0]) + 10, ty(b[1]) - 10);
+    if (d.snap) { ctx.strokeStyle = C.skel; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(tx(d.snap[0]), ty(d.snap[1]), 7, 0, Math.PI * 2); ctx.stroke(); }
+  }
+}
+
+/* ---------- snapping ---------- */
+/* exact point: other rail ends, bar / post corners and edges near the pointer; Shift = 15° steps from `from` */
+function railSnap(x, y, from, shift, skip) {
+  const tol = 9 / view.s; let best = null; const take = (p, kind) => { const dd = Math.hypot(p[0] - x, p[1] - y); if (dd < tol && (!best || dd < best.d)) best = { p, d: dd, kind }; };
+  for (const r of S.rails || []) for (const k of ["a", "b"]) if (!(skip && skip.some(s => s.r === r && s.k === k))) take(r[k], "end");
+  if (S.railDraft && S.railDraft.pts.length > 1) take(S.railDraft.pts[0], "start");
+  if (best) return { p: best.p.slice(), kind: best.kind };
+  let p = [x, y];
+  if (shift && from) { const v = RV.sub(p, from), L = RV.len(v), a = Math.round(Math.atan2(v[1], v[0]) / (Math.PI / 12)) * (Math.PI / 12); p = [from[0] + L * Math.cos(a), from[1] + L * Math.sin(a)]; }
+  else p = [Math.round(p[0]), Math.round(p[1])];
+  return { p, kind: null };
+}
+/* an end inside a bar or post is moved onto the edge that faces the other end, along the rail line */
+function railFit(r) {
+  for (const k of ["a", "b"]) {
+    const P = r[k], Q = k === "a" ? r.b : r.a;
+    for (const b of S.bars || []) {
+      if (P[0] < b.x0 - 1 || P[0] > b.x1 + 1 || Math.abs(P[1] - b.y) > b.h / 2 + 0.01) continue;
+      const ye = b.y + Math.sign(Q[1] - b.y || 1) * b.h / 2; if (Math.abs(Q[1] - P[1]) < 1e-6) continue;
+      const t = (ye - P[1]) / (Q[1] - P[1]); r[k] = [P[0] + (Q[0] - P[0]) * t, ye]; break;
+    }
+    for (const q of S.posts || []) for (const [lo, hi] of Core.postSegs(S.bars, q)) {
+      const P2 = r[k]; if (P2[1] < lo - 1 || P2[1] > hi + 1 || Math.abs(P2[0] - q.x) > q.w / 2 + 0.01) continue;
+      const xe = q.x + Math.sign(Q[0] - q.x || 1) * q.w / 2; if (Math.abs(Q[0] - P2[0]) < 1e-6) continue;
+      const t = (xe - P2[0]) / (Q[0] - P2[0]); r[k] = [xe, P2[1] + (Q[1] - P2[1]) * t];
+    }
+  }
+}
+
+/* ---------- drawing tool: click corner by corner; double click, right click, Esc or the first corner ends the chain ---------- */
+function railClick(x, y, e) {
+  const d = S.railDraft || (S.railDraft = { pts: [], cur: null, snap: null });
+  const from = d.pts[d.pts.length - 1], s = railSnap(x, y, from, e.shiftKey);
+  if (!from) { d.pts.push(s.p); d.cur = s.p; draw(); $("hint").textContent = "Kliki järgmisele nurgale · Shift = 15° sammud · topeltklikk, parem klikk või Esc lõpetab · klikk esimesel nurgal sulgeb ahela"; return; }
+  if (RV.len(RV.sub(s.p, from)) < cfg.profile) { railEnd(); return; } /* second click of a double click */
+  snapshot(); const r = { a: from.slice(), b: s.p.slice(), w: cfg.profile }; railFit(r); S.rails = (S.rails || []).concat([r]); S.manual = true;
+  const closed = d.pts.length > 1 && near(s.p, d.pts[0]); d.pts.push(r.b.slice()); recompute();
+  toast(`Profiil ${Math.round(railGeom(r).long)} mm`);
+  if (closed) railEnd();
+}
+function railMove(x, y, e) { const d = S.railDraft; if (!d || !d.pts.length) return; const s = railSnap(x, y, d.pts[d.pts.length - 1], e.shiftKey); d.cur = s.p; d.snap = s.kind ? s.p : null; draw(); }
+function railEnd() { if (!S.railDraft) return; S.railDraft = null; draw(); if (S.tool === "rail") setTool("rail"); }
+
+/* ---------- editing: drag a corner (all rails meeting there move together) ---------- */
+function railDragStart(h) { const refs = []; for (const r of S.rails || []) for (const k of ["a", "b"]) if (near(r[k], h.p)) refs.push({ r, k }); return { k: "railEnd", refs, moved: false }; }
+function railDragMove(dg, x, y, e) {
+  const first = dg.refs[0], other = first.k === "a" ? first.r.b : first.r.a, s = railSnap(x, y, other, e.shiftKey, dg.refs);
+  for (const f of dg.refs) f.r[f.k] = s.p.slice(); dg.moved = true; refreshMounts();
+  $("hint").textContent = dg.refs.map(f => `${Math.round(railGeom(f.r).long)} mm`).join(" · "); draw();
+}
+function railDragEnd(dg) { if (!dg.moved) { undo.pop(); return; } for (const f of dg.refs) railFit(f.r); S.manual = true; recompute(); }
+function railDelete(i) { S.rails.splice(i, 1); }
+
+/* ---------- 3D ---------- */
+function railMeshes(g3, mat, pd) {
+  for (const r of S.rails || []) { const g = railGeom(r); const shape = new THREE.Shape(g.poly.map(p => new THREE.Vector2(p[0], p[1])));
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: pd, bevelEnabled: false }); const m = new THREE.Mesh(geo, mat); m.position.z = -pd; g3.add(m); }
+}

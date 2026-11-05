@@ -77,6 +77,7 @@ function build3D() {
   if (on("ly_frame")) {
     for (const b of S.bars || []) { const m = new THREE.Mesh(new THREE.BoxGeometry(b.x1 - b.x0, b.h, pd), mFrame); m.position.set((b.x0 + b.x1) / 2, b.y, -pd / 2); g.add(m); }
     for (const q of S.posts || []) for (const [lo, hi] of Core.postSegs(S.bars, q)) { const m = new THREE.Mesh(new THREE.BoxGeometry(q.w, hi - lo, pd), mFrame); m.position.set(q.x, (lo + hi) / 2, -pd / 2); g.add(m); }
+    if (typeof railMeshes === "function") railMeshes(g, mFrame, pd);
   }
   if (on("ly_led") && S.leds && S.leds.length) {
     const geo = new THREE.BoxGeometry(1, 1, 1), m = new THREE.MeshStandardMaterial({ color: cfg.glow3d ? 0xffffff : 0xd8d8d8, emissive: cfg.glow3d ? 0xffe2b0 : 0x000000, emissiveIntensity: cfg.glow3d ? 1 : 0 });

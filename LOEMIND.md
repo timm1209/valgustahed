@@ -37,6 +37,7 @@ GitHubis töötab see GitHub Pagesiga otse: lae kogu kaust repositooriumi ja lü
 | `js/paneel.js` | Parempoolne paneel, koondinfo, raport |
 | `js/vaade2d.js` | 2D-joonis, mõõdulint, mõõdud |
 | `js/raam.js` | Raami muutmine, lõikeloend |
+| `js/raam-vaba.js` | Vaba kujuga raam: profiilid nurga all, gärungnurgad, nende kinnitusavad |
 | `js/tooriistad.js` | Hiir, tööriistad, kiirklahvid |
 | `js/eksport.js` | LED-joonise eksport (DXF/DWG), külg |
 | `js/projekt.js` | Projektifail (.ledprojekt.json) |

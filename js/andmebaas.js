@@ -84,7 +84,7 @@ function closeWork() {
   }
   closeDisarm();
   const nm = S.dbName || S.name;
-  Object.assign(S, { name: "", srcText: null, srcFmt: null, sample: null, letters: [], chains: [], samp: [], leds: [], holes: [], bars: [], posts: [], spots: [], mountAdd: [], mountDel: [], multi: [], rep: null, wire: null, parseInfo: null, openCount: 0, dupes: 0, sel: null, selLetter: null, manual: false, dbId: null, dbName: null, dbSaved: null, dbSnap: null });
+  Object.assign(S, { name: "", srcText: null, srcFmt: null, sample: null, letters: [], chains: [], samp: [], leds: [], holes: [], bars: [], posts: [], rails: [], railDraft: null, spots: [], mountAdd: [], mountDel: [], multi: [], rep: null, wire: null, parseInfo: null, openCount: 0, dupes: 0, sel: null, selLetter: null, manual: false, dbId: null, dbName: null, dbSaved: null, dbSnap: null });
   undo.length = 0;
   S.groups = [emptyGroup("Tekst")]; S.gCur = 0; S.order = emptyOrder(); fillOrder();
   if (S.tool !== "select") setTool("select");

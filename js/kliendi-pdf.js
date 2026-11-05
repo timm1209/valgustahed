@@ -53,7 +53,7 @@ async function exportPdf() {
     /* spec column */
     let cx = ix + iw + 10, cw = W - M - cx, y = iy + 2; const colW = (W - 2 * M - 3 * 8) / 4, y0 = iy + ih + 9;
     const col = k => { if (wide) { cx = M + k * (colW + 8); cw = colW; y = y0; } else if (k) y += 3; };
-    const o = S.order, frameLen = (S.bars.reduce((a, b) => a + b.x1 - b.x0, 0) + postLen()) / 1000;
+    const o = S.order, frameLen = (S.bars.reduce((a, b) => a + b.x1 - b.x0, 0) + postLen() + railLenTotal()) / 1000;
     const section = name => { doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(...acc); doc.text(name.toUpperCase(), cx, y, { charSpace: 0.4 }); y += 2; doc.setDrawColor(...line); doc.line(cx, y, cx + cw, y); y += 5; };
     const row = (label, value, colorStr) => {
       if (!value) return; doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...mut); doc.text(label, cx, y);

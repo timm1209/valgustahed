@@ -181,6 +181,7 @@ function writeDXF(d) {
     }
   }
   for (const b of d.bars) { const xs = [b.x0, ...((b.j && b.j.xs) || []), b.x1]; for (let i = 1; i < xs.length; i++) poly([[xs[i - 1], b.y - b.h / 2], [xs[i], b.y - b.h / 2], [xs[i], b.y + b.h / 2], [xs[i - 1], b.y + b.h / 2]], true, "RAAM"); }
+  if (d.rails) for (const pr of d.rails) poly(pr, true, "RAAM"); /* free-angle profiles: their mitred outlines */
   if (d.posts) for (const q of d.posts) for (const [lo, hi] of postSegs(d.bars, q)) poly([[q.x - q.w / 2, lo], [q.x + q.w / 2, lo], [q.x + q.w / 2, hi], [q.x - q.w / 2, hi]], true, "RAAM");
   if (d.wire && d.wire.length > 1) poly(d.wire.map(l => [l.x, l.y]), false, "JUHE");
   if (d.info) { const y = d.infoY, x = d.infoX; d.info.forEach((s, i) => text(x, y - i * d.infoH * 1.6, d.infoH, s, "INFO")); }

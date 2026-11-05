@@ -2,7 +2,7 @@
    Raami joonis, tootmisjoonis (Üldjoonis) ja joonised PDF-ina.
    Kõik failid jagavad ühist globaalset skoopi; laadimise järjekord on index.html-is. */
 async function exportFrame() {
-  if (!(S.bars || []).length) { toast("Raami pole."); return; }
+  if (!hasFrame()) { toast("Raami pole."); return; }
   const useTpl = tplActive() && await tplEnsure();
   const { txt, origin } = frameDXF();
   if (useTpl) { await saveTpl(tplFileName(" raam"), txt, origin); return; }
@@ -11,7 +11,10 @@ async function exportFrame() {
 /* the frame workshop drawing as DXF text (+ its lower-left corner for the template) */
 function frameDXF() {
   const DS = 15, parts = frameParts(), groups = [], outBars = [], outPosts = [];
-  const gx = Math.min(...S.bars.map(b => b.x0)), ytop = Math.max(...S.bars.map(b => b.y + b.h / 2)), ybot = Math.min(...S.bars.map(b => b.y - b.h / 2)), H = ytop - ybot;
+  const RG = (S.rails || []).map(r => railGeom(r)), rx = RG.flatMap(g => g.poly.map(p => p[0])), ry = RG.flatMap(g => g.poly.map(p => p[1]));
+  const gx = Math.min(...S.bars.map(b => b.x0), ...rx), ytop = Math.max(...S.bars.map(b => b.y + b.h / 2), ...ry), ybot = Math.min(...S.bars.map(b => b.y - b.h / 2), ...ry), H = ytop - ybot;
+  /* free-angle profiles keep their place next to the first ladder */
+  const dx0 = parts.length ? gx - Math.min(...parts[0].bars.map(b => b.x0)) : 0, outRails = RG.map(g => g.poly.map(p => [p[0] + dx0, p[1]]));
   const pitch = H + 2 * 10 * DS + 2 * 12 * DS; /* frame height + dimension rows above and below + text */
   const seenLen = new Set();
   parts.forEach((pt, k) => {
@@ -36,12 +39,16 @@ function frameDXF() {
     for (const s of segs) { const L = Math.round(s.hi - s.lo); if (seenLen.has(L)) continue; seenLen.add(L); const atStart = s.x - s.w / 2 - gx < 8 * DS, e = atStart ? s.x + s.w / 2 : s.x - s.w / 2; /* a post at the frame start gets its length on the right, clear of the height column */
       groups.push({ vert: true, side: atStart ? 1 : -1, edge: e, e2: e, pts: [s.lo, s.hi], off: 3 * DS }); }
   });
-  const list = frameCutList(), xmax = Math.max(...outBars.map(b => b.x1));
-  const info = [frameMaterialLine(), ...list.map(([len, n]) => `L-${len}mm, ${n}tk`)];
-  const txt = Core.writeDXF({ only: new Set(["RAAM", "MOODUD", "INFO"]), letters: [], chains: [], leds: [], holes: [], mounts: [], bars: outBars, posts: outPosts, prof: null, types: cfg.types, dimGroups: groups, dimInt: true,
-    info, infoX: xmax + 25 * DS, infoY: ytop - 3 * DS, infoH: 3 * DS });
-  const ylo = Math.min(...outBars.map(b => b.y - b.h / 2)), infoW = Math.max(...info.map(s => String(s).length)) * 3 * DS * 0.62;
-  return { txt, origin: [Math.min(...outBars.map(b => b.x0)), ylo], box: [Math.min(...outBars.map(b => b.x0)) - 6 * DS, ylo - 12 * DS, xmax + 25 * DS + infoW, ytop + 12 * DS] };
+  const list = frameCutList(), rlist = railCutList(), xs = [...outBars.flatMap(b => [b.x0, b.x1]), ...outRails.flatMap(p => p.map(q => q[0]))], xmax = Math.max(...xs), xmin = Math.min(...xs);
+  const info = [frameMaterialLine(), ...list.map(([len, n]) => `L-${len}mm, ${n}tk`), ...(rlist.length ? ["Nurga all (pikem serv, lõikenurgad):", ...rlist.map(railLine)] : [])];
+  /* free-angle profiles: length (longer edge) written along each profile */
+  const railText = api => (S.rails || []).forEach((r, i) => { const g = RG[i], m = [(r.a[0] + r.b[0]) / 2 + dx0, (r.a[1] + r.b[1]) / 2]; let a = Math.atan2(r.b[1] - r.a[1], r.b[0] - r.a[0]) * 180 / Math.PI; if (a > 90) a -= 180; if (a < -90) a += 180;
+    const s = `${Math.round(g.long)}` + (g.angA || g.angB ? ` (${railDeg(g.angA)}/${railDeg(g.angB)})` : ""), th = 2.5 * DS, ar = a * Math.PI / 180, off = g.h + 1.5 * DS, tw = s.length * th * 0.62;
+    api.text(m[0] - Math.cos(ar) * tw / 2 - Math.sin(ar) * off, m[1] - Math.sin(ar) * tw / 2 + Math.cos(ar) * off, th, s, "INFO", a); });
+  const txt = Core.writeDXF({ only: new Set(["RAAM", "MOODUD", "INFO"]), letters: [], chains: [], leds: [], holes: [], mounts: [], bars: outBars, posts: outPosts, rails: outRails, prof: null, types: cfg.types, dimGroups: groups, dimInt: true,
+    info, infoX: xmax + 25 * DS, infoY: ytop - 3 * DS, infoH: 3 * DS, extra: railText });
+  const ylo = Math.min(...outBars.map(b => b.y - b.h / 2), ...outRails.flatMap(p => p.map(q => q[1]))), infoW = Math.max(...info.map(s => String(s).length)) * 3 * DS * 0.62;
+  return { txt, origin: [xmin, ylo], box: [xmin - 6 * DS, ylo - 12 * DS, xmax + 25 * DS + infoW, ytop + 12 * DS] };
 }
 $("btnExportFrame").addEventListener("click", exportFrame);
 /* ===================== PRODUCTION DRAWING (Üldjoonis) =====================
@@ -132,7 +139,7 @@ function sheetDXF(opt = {}) {
     const [ox, oy] = useTpl ? [cx, ly0 - DIM - 120 - 60 - fullH * sc / 2] : P(bx + bw / 2, by + bh / 2), T = (q, z) => [ox + (q[0] - cx + z * sdx - D * sdx / 2) * sc, oy + (q[1] - cy + z * sdy - D * sdy / 2) * sc];
     const rect = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
     const frameCol = colorOf(S.order.frameColor) || 0xc4cad0, pd = cfg.profile || 30, simp = lp => Core.simplifyClosed ? Core.simplifyClosed(lp, 0.6) : lp;
-    const fr = [...(S.bars || []).map(b => rect(b.x0, b.y - b.h / 2, b.x1, b.y + b.h / 2)), ...(S.posts || []).flatMap(q => Core.postSegs(S.bars, q).map(([lo, hi]) => rect(q.x - q.w / 2, lo, q.x + q.w / 2, hi)))];
+    const fr = [...(S.bars || []).map(b => rect(b.x0, b.y - b.h / 2, b.x1, b.y + b.h / 2)), ...(S.posts || []).flatMap(q => Core.postSegs(S.bars, q).map(([lo, hi]) => rect(q.x - q.w / 2, lo, q.x + q.w / 2, hi))), ...(S.rails || []).map(r => railGeom(r).poly)];
     if (fr.length) { const sw = Core.sweepLoops(fr, pd * sdx, pd * sdy).map(lp => lp.map(q => T(q, -pd))); api.hatch(sw.map(lp => lp.map(q => [q[0], q[1]])), "INFO", frameCol); }
     const shade = (c, f) => (Math.round(((c >> 16) & 255) * f) << 16) | (Math.round(((c >> 8) & 255) * f) << 8) | Math.round((c & 255) * f);
     const faces = [];
@@ -146,7 +153,7 @@ function sheetDXF(opt = {}) {
   };
   /* the same layers as the layer menu (ticked = exported), like the main DXF export */
   const txt = Core.writeDXF({ layerNames: exportLayerNames(), only: exportLayers(), drainMode: cfg.drainMode, curveMode: cfg.curveMode || "lines", chordTol: cfg.chordTol || 0.01,
-    letters: S.letters, chains: S.chains, leds: S.leds, holes: S.holes, wire: S.wire ? S.wire.order : null, bars: S.bars, posts: S.posts, mounts: S.mounts, mountD: cfg.mountD, types: cfg.types, holeD: cfg.holeD, prof: S.prof,
+    letters: S.letters, chains: S.chains, leds: S.leds, holes: S.holes, wire: S.wire ? S.wire.order : null, bars: S.bars, posts: S.posts, rails: (S.rails || []).map(r => railGeom(r).poly), mounts: S.mounts, mountD: cfg.mountD, types: cfg.types, holeD: cfg.holeD, prof: S.prof,
     cables: S.cables && S.cables.length ? S.cables : null, cableD: cfg.cableD || 8, extraDims, extra, dimInt: true });
   return { txt, k, cx, cy, px, py, origin: [X0, ly0] };
 }
@@ -239,7 +246,7 @@ async function exportDrawingsPdf() {
     const sh = sheetDXF();
     drawDxf(pdfPen(doc, (x, y) => [sh.px + (x - sh.cx) / sh.k, sh.py + (y - sh.cy) / sh.k]), parseDxfEnts(sh.txt), 1 / sh.k);
     /* page 2: Raamijoonis, fitted to the drawing area at a standard scale */
-    if ((S.bars || []).length) {
+    if (hasFrame()) {
       doc.addPage("a3", "landscape");
       const D = parseDxfEnts(frameDXF().txt), b = dxfBounds(D), ax0 = 26, ax1 = SHEET_W - 10 - TB_W - 6, ay0 = 36, ay1 = SHEET_H - 16;
       const k = pickScale(b.x1 - b.x0, b.y1 - b.y0, ax1 - ax0, ay1 - ay0), mx = (b.x0 + b.x1) / 2, my = (b.y0 + b.y1) / 2, qx = (ax0 + ax1) / 2, qy = (ay0 + ay1) / 2;

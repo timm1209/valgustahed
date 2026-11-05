@@ -52,7 +52,8 @@ function renderSummary() {
   const el = $("sumList"); if (!el) return;
   const mm = v => String(Math.round(+v * 100) / 100).replace(".", ",");
   const W = S.letters.length ? Math.max(...S.letters.map(L => L.bb.x1)) - Math.min(...S.letters.map(L => L.bb.x0)) : 0, Hh = S.letters.length ? Math.max(...S.letters.map(L => L.bb.y1)) - Math.min(...S.letters.map(L => L.bb.y0)) : 0;
-  const bars = S.bars || [], fx0 = bars.length ? Math.min(...bars.map(b => b.x0)) : 0, fx1 = bars.length ? Math.max(...bars.map(b => b.x1)) : 0, fy0 = bars.length ? Math.min(...bars.map(b => b.y - b.h / 2)) : 0, fy1 = bars.length ? Math.max(...bars.map(b => b.y + b.h / 2)) : 0;
+  const bars = S.bars || [], rp = (S.rails || []).flatMap(r => railGeom(r).poly), fxs = [...bars.flatMap(b => [b.x0, b.x1]), ...rp.map(p => p[0])], fys = [...bars.flatMap(b => [b.y - b.h / 2, b.y + b.h / 2]), ...rp.map(p => p[1])];
+  const fx0 = fxs.length ? Math.min(...fxs) : 0, fx1 = fxs.length ? Math.max(...fxs) : 0, fy0 = fys.length ? Math.min(...fys) : 0, fy1 = fys.length ? Math.max(...fys) : 0;
   const drain = { notch: "sälk põhja servas", hole: "ümar ava", none: "ei ole" }[cfg.drainMode || "notch"];
   /* Profiil, Esipind, Külg and LED come from each part (Osad); with several parts each row is given per part */
   const TN = { p3: "P3 tahavalgusega", liist: "P6 peidetud liistuga", klaas: "P6 paks klaas" };
@@ -70,8 +71,8 @@ function renderSummary() {
     ...per("Külg", g => join(sideSpec(g).text + " mm", g.sideColor)),
     ["Raam", join(frameProfileName(), S.order && S.order.frameMat, S.order && S.order.frameColor)],
     ...per("LED", g => join(g.lightTemp, yes(g.dimmable))),
-    ["Raami suurus", bars.length ? `${Math.round(fx1 - fx0)} × ${Math.round(fy1 - fy0)} mm` : "—"],
-    ...(bars.length ? [["Raami osad", `${barPieces()} profiili · ${(S.posts || []).length} pulka` + (cfg.barExt ? ` · jätk ≤ ${mm(cfg.barSegMax)} mm` : "")]] : []),
+    ["Raami suurus", fxs.length ? `${Math.round(fx1 - fx0)} × ${Math.round(fy1 - fy0)} mm` : "—"],
+    ...(bars.length || (S.rails || []).length ? [["Raami osad", `${barPieces()} profiili · ${(S.posts || []).length} pulka` + ((S.rails || []).length ? ` · ${S.rails.length} nurga all` : "") + (cfg.barExt && bars.length ? ` · jätk ≤ ${mm(cfg.barSegMax)} mm` : "")]] : []),
     ["Veeavad", cfg.drainMode === "none" ? "ei ole" : `${drain} · Ø${mm(cfg.holeD)}${S.holes.length ? ` · ${S.holes.length} tk` : ""}`],
     ["Kinnitusavad", `Ø${mm(cfg.mountD)}${(S.mounts || []).length ? ` · ${S.mounts.length} tk` : ""}`],
     ...(anyP3() ? [["Kaabliavad", `Ø${mm(cfg.cableD || 8)}${S.cables && S.cables.length ? ` · ${S.cables.length} tk` : ""}`]] : []),
@@ -110,7 +111,8 @@ function renderRep() {
   const postRows = posts.map((q, i) => `<div><span>Pulk ${i + 1}</span><span>${pc[i].len.toFixed(0)} mm · ${pc[i].out < 1 ? "peidus" : "paistab ~" + pc[i].out.toFixed(0) + " mm"}</span></div>`).join("");
   const postWarn = pc.some(c => c.out >= 1) ? `<div class="msg warn">Mõni pulk paistab tähtede vahelt välja. Lohista seda Shiftiga või vähenda pulkade vahet.</div>` : "";
   const gaps = S.bars.slice().sort((p, q) => p.y - q.y).map((b, i, arr) => i ? b.y - arr[i - 1].y : null).filter(v => v != null);
-  $("frameList").innerHTML = S.bars.length ? S.bars.slice().sort((p, q) => q.y - p.y).map((b, i) => { const xs = [b.x0, ...((b.j && b.j.xs) || []), b.x1], parts = xs.slice(1).map((x, k) => (x - xs[k]).toFixed(0)); return `<div><span>Profiil ${i + 1}</span><span>${(b.x1 - b.x0).toFixed(0)} mm</span></div>` + (parts.length > 1 ? `<div><span>&nbsp;&nbsp;jätkuga osad</span><span>${parts.join(" + ")}</span></div>` : ""); }).join("") + (gaps.length ? `<div><span>Suurim vahe</span><span>${Math.max(...gaps).toFixed(0)} mm</span></div>` : "") + postRows + postWarn : `<div class="msg warn">Raami ei õnnestunud paigutada.</div>`;
+  const railRows = (S.rails || []).map((r, k) => { const g = railGeom(r); return `<div><span>Nurga all ${k + 1}</span><span>${Math.round(g.long)} mm${g.angA || g.angB ? ` · ${railDeg(g.angA)}/${railDeg(g.angB)}` : ""}</span></div>`; }).join("");
+  $("frameList").innerHTML = (S.rails || []).length && !S.bars.length ? railRows : S.bars.length ? S.bars.slice().sort((p, q) => q.y - p.y).map((b, i) => { const xs = [b.x0, ...((b.j && b.j.xs) || []), b.x1], parts = xs.slice(1).map((x, k) => (x - xs[k]).toFixed(0)); return `<div><span>Profiil ${i + 1}</span><span>${(b.x1 - b.x0).toFixed(0)} mm</span></div>` + (parts.length > 1 ? `<div><span>&nbsp;&nbsp;jätkuga osad</span><span>${parts.join(" + ")}</span></div>` : ""); }).join("") + (gaps.length ? `<div><span>Suurim vahe</span><span>${Math.max(...gaps).toFixed(0)} mm</span></div>` : "") + postRows + postWarn : `<div class="msg warn">Raami ei õnnestunud paigutada.</div>`; if (S.bars.length && railRows) $("frameList").innerHTML += railRows;
   $("repList").innerHTML = rows.map(([a, b]) => `<div><span>${a}</span><span>${b}</span></div>`).join("");
   const m = [];
   if (r.spots.length) m.push(["warn", `Kontroll: ${r.spots.length} tühja kohta (märgitud ristiga).`]); else m.push(["ok", "Kontroll: tühje kohti ega paigutusvigu ei leitud."]);
@@ -119,7 +121,7 @@ function renderRep() {
   if (r.nearEdge) m.push(["warn", `${r.nearEdge} LED-i on servale lähemal kui ${Math.round(cfg.edge * 0.75)} mm.`]);
   $("repMsgs").innerHTML = m.map(([c, t]) => `<div class="msg ${c}">${esc(t)}</div>`).join("");
   $("f_leds").textContent = S.leds.length; $("f_cov").textContent = pct(r.coverage);
-  $("stCounts").textContent = `${S.leds.length} LED-i · ${S.holes.length} auku · ${S.bars.length} profiili · ${(S.posts || []).length} pulka`;
+  $("stCounts").textContent = `${S.leds.length} LED-i · ${S.holes.length} auku · ${S.bars.length} profiili · ${(S.posts || []).length} pulka` + ((S.rails || []).length ? ` · ${S.rails.length} nurga all` : "");
   if (S.selLetter != null) showLetter();
 }
 

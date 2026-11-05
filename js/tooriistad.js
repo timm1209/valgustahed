@@ -15,7 +15,9 @@ cv.addEventListener("pointerdown", e => {
   cv.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
   if (pointers.size === 2) { const [a, b] = [...pointers.values()]; drag = { k: "pinch", d: Math.hypot(a.x - b.x, a.y - b.y), s: view.s }; return; }
   const px = e.offsetX, py = e.offsetY, x = wx(px), y = wy(py);
+  if (e.button === 2 && S.tool === "rail" && S.railDraft) { railEnd(); return; }
   if (e.button === 1 || e.button === 2) { drag = { k: "pan", px, py, cx: view.cx, cy: view.cy }; return; }
+  if (S.tool === "rail") { if (!hasFrame() && !S.letters.length) return; railClick(x, y, e); return; }
   if (S.tool === "measure") { const p = measPoint(px, py, e.shiftKey); if (!S.meas || S.meas.done) S.meas = { a: p, b: p, done: false }; else { S.meas.b = p; S.meas.done = true; } draw(); return; }
   if (S.tool === "led") { const li = letterAt(x, y); if (li < 0) { toast("LED-i saab lisada ainult kuju sisse."); return; } snapshot(); const t = typeOf(S.letters[li]); S.leds.push({ x, y, a: 0, t, L: li }); S.manual = true; S.sel = { k: "led", i: S.leds.length - 1 }; recompute(); return; }
   if (S.tool === "bar") {
@@ -40,18 +42,21 @@ cv.addEventListener("pointerdown", e => {
   }
   if (S.tool === "hole") { const li = letterAt(x, y); if (li < 0) { toast("Veeauk peab olema kuju sees."); return; } snapshot(); S.holes.push({ x, y, L: li }); S.manual = true; recompute(); return; }
   if (S.tool === "screw") { const p = frameSnap(x, y); if (!p) { toast("Kinnitusava peab olema raamil (profiili või pulga peal)."); return; } snapshot(); S.mountAdd = (S.mountAdd || []).concat([p]); S.manual = true; recompute(); toast("Kinnitusava lisatud"); return; }
+  const re = S.tool === "select" ? railEndAt(px, py) : null;
+  if (re) { S.sel = { k: "rail", i: S.rails.indexOf(re.r) }; snapshot(); drag = railDragStart(re); draw(); return; }
   const jt = S.tool === "select" ? jointAt(px, py) : null;
   if (jt) { S.sel = { k: "bar", i: S.bars.indexOf(jt.b) }; snapshot(); drag = { k: "joint", b: jt.b, j: jt.k, moved: false }; draw(); return; }
   const be = S.tool === "select" ? barEndAt(px, py) : null;
   if (be) { S.sel = { k: "bar", i: S.bars.indexOf(be.b) }; snapshot(); drag = { k: "barEnd", b: be.b, end: be.end, moved: false }; draw(); return; }
   const h = hit(px, py);
   if (S.tool === "delete") { const mi = mountAt(px, py); if (mi >= 0) { snapshot(); const m = S.mounts[mi]; if (m.man) S.mountAdd = (S.mountAdd || []).filter(a => Math.hypot(a.x - m.x, a.y - m.y) > 1.5); else S.mountDel = (S.mountDel || []).concat([{ x: m.x, y: m.y }]); S.manual = true; recompute(); toast("Kinnitusava kustutatud"); return; }
-    if (h) { snapshot(); (h.k === "led" ? S.leds : S.holes).splice(h.i, 1); S.manual = true; S.sel = null; recompute(); return; } const pi = postAt(x, y); if (pi >= 0) { snapshot(); removePostAt(S.posts[pi], y); S.multi = []; S.manual = true; recompute(); return; } const bi = barAt(x, y); if (bi >= 0) { snapshot(); S.bars.splice(bi, 1); S.manual = true; recompute(); return; } drag = { k: "pan", px, py, cx: view.cx, cy: view.cy }; return; }
+    if (h) { snapshot(); (h.k === "led" ? S.leds : S.holes).splice(h.i, 1); S.manual = true; S.sel = null; recompute(); return; } const pi = postAt(x, y); if (pi >= 0) { snapshot(); removePostAt(S.posts[pi], y); S.multi = []; S.manual = true; recompute(); return; } const ri = railAt(x, y); if (ri >= 0) { snapshot(); railDelete(ri); S.sel = null; S.manual = true; recompute(); return; } const bi = barAt(x, y); if (bi >= 0) { snapshot(); S.bars.splice(bi, 1); S.manual = true; recompute(); return; } drag = { k: "pan", px, py, cx: view.cx, cy: view.cy }; return; }
   if (h) { S.sel = h; const o = (h.k === "led" ? S.leds : S.holes)[h.i]; snapshot(); drag = { k: "move", o, dx: o.x - x, dy: o.y - y, moved: false }; draw(); return; }
   const frameOk = e.shiftKey || letterAt(x, y) < 0;
   const pi = postAt(x, y);
   if (pi >= 0 && (e.ctrlKey || e.metaKey)) { const q = S.posts[pi]; S.multi = S.multi || []; const k = S.multi.indexOf(q); if (k >= 0) S.multi.splice(k, 1); else S.multi.push(q); S.sel = { k: "post", i: pi, y }; renderAlign(); draw(); return; }
   if (pi >= 0 && frameOk) { S.sel = { k: "post", i: pi, y }; S.multi = [S.posts[pi]]; renderAlign(); snapshot(); drag = { k: "post", q: S.posts[pi], dx: S.posts[pi].x - x, moved: false }; draw(); return; }
+  const ri = railAt(x, y); if (ri >= 0 && frameOk) { S.sel = { k: "rail", i: ri }; draw(); drag = { k: "pan", px, py, cx: view.cx, cy: view.cy }; return; }
   const bi = barAt(x, y); if (bi >= 0 && frameOk) { S.sel = { k: "bar", i: bi }; snapshot(); drag = { k: "bar", b: S.bars[bi], dy: S.bars[bi].y - y, moved: false }; draw(); return; }
   drag = { k: "pan", px, py, cx: view.cx, cy: view.cy, click: true, x, y };
 });
@@ -59,12 +64,15 @@ cv.addEventListener("pointermove", e => {
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
   const x = wx(e.offsetX), y = wy(e.offsetY); $("stCursor").textContent = `X ${x.toFixed(1)} · Y ${y.toFixed(1)} mm`;
   if (S.tool === "select" && !drag) cv.style.cursor = barEndAt(e.offsetX, e.offsetY) || jointAt(e.offsetX, e.offsetY) ? "ew-resize" : "default";
+  if (S.tool === "rail" && !drag) { railMove(x, y, e); return; }
+  if (S.tool === "select" && !drag && railEndAt(e.offsetX, e.offsetY)) cv.style.cursor = "move";
   if (S.tool === "measure" && !drag) { const p = measPoint(e.offsetX, e.offsetY, e.shiftKey); S.measHover = p; if (S.meas && !S.meas.done) S.meas.b = p; draw(); return; }
   if (!drag) return;
   if (drag.k === "pinch" && pointers.size === 2) { const [a, b] = [...pointers.values()]; view.s = drag.s * Math.hypot(a.x - b.x, a.y - b.y) / (drag.d || 1); draw(); return; }
   if (drag.k === "pan") { const dx = e.offsetX - drag.px, dy = e.offsetY - drag.py; if (Math.abs(dx) + Math.abs(dy) > 3) drag.click = false; view.cx = drag.cx - dx / view.s; view.cy = drag.cy + dy / view.s; draw(); }
   else if (drag.k === "move") { drag.o.x = x + drag.dx; drag.o.y = y + drag.dy; drag.moved = true; draw(); }
   else if (drag.k === "barEnd") { const b = drag.b, xr = Math.round(x); if (drag.end === 0) b.x0 = Math.min(xr, b.x1 - b.h * 2); else b.x1 = Math.max(xr, b.x0 + b.h * 2); b.fixEnds = true; updateJoints(); refreshMounts(); drag.moved = true; $("hint").textContent = `Profiili pikkus ${Math.round(b.x1 - b.x0)} mm`; draw(); }
+  else if (drag.k === "railEnd") railDragMove(drag, x, y, e);
   else if (drag.k === "joint") {
     /* magnetic alignment (8 px on screen) with the joints of the other bars and with the posts; Alt = no snapping */
     let nx = x, best = null; S.guide = null;
@@ -85,6 +93,7 @@ const endDrag = e => {
   if (!drag) return; const d = drag; drag = null;
   if (d.k === "move") { if (d.moved) { const li = letterAt(d.o.x, d.o.y); if (li >= 0) d.o.L = li; S.manual = true; recompute(); } else { undo.pop(); draw(); } }
   else if (d.k === "post") { S.guide = null; if (d.moved) { Core.snapBars(S.bars, [d.q]); S.manual = true; recompute(); } else undo.pop(); }
+  else if (d.k === "railEnd") railDragEnd(d);
   else if (d.k === "joint") { S.guide = null; if (d.moved) { S.manual = true; recompute(); toast(`Jätkuga osad: ${jointParts(d.b)} mm`); } else undo.pop(); setTool(S.tool); }
   else if (d.k === "bar") { if (d.moved) { S.manual = true; recompute(); } else undo.pop(); }
   else if (d.k === "barEnd") { if (d.moved) { S.manual = true; recompute(); toast(`Profiil ${Math.round(d.b.x1 - d.b.x0)} mm`); } else undo.pop(); }
@@ -95,6 +104,7 @@ cv.addEventListener("pointerup", endDrag); cv.addEventListener("pointercancel", 
 cv.addEventListener("contextmenu", e => e.preventDefault());
 /* double click: on a joint removes it, elsewhere on a bar adds one (frame extension must be on) */
 cv.addEventListener("dblclick", e => {
+  if (S.tool === "rail") { railEnd(); return; }
   if (S.tool !== "select" || !on("ly_frame")) return;
   const px = e.offsetX, py = e.offsetY, x = wx(px), y = wy(py);
   const jt = jointAt(px, py); if (jt) { snapshot(); removeJoint(jt.b, jt.k); S.manual = true; recompute(); toast("Jätk eemaldatud" + (jt.b.j && jt.b.j.xs.length ? `: osad ${jointParts(jt.b)} mm` : "")); return; }
@@ -103,16 +113,17 @@ cv.addEventListener("dblclick", e => {
   snapshot(); if (!addJoint(b, x)) { undo.pop(); return; } S.manual = true; recompute(); toast(`Jätk lisatud: osad ${jointParts(b)} mm`);
 });
 cv.addEventListener("wheel", e => { e.preventDefault(); const x = wx(e.offsetX), y = wy(e.offsetY); const f = Math.exp(-e.deltaY * 0.0015); view.s *= f; view.cx = x - (e.offsetX - W / 2) / view.s; view.cy = y - (H / 2 - e.offsetY) / view.s; draw(); }, { passive: false });
-function setTool(t) { if (t !== "measure" && S.meas) { S.meas = null; draw(); } S.tool = t; document.querySelectorAll("#tools button").forEach(b => b.classList.toggle("on", b.dataset.tool === t)); cv.style.cursor = t === "select" ? "default" : "crosshair"; const hints = { select: "Kliki tähel, et muuta selle LED-tüüpi · lohista LED-e ja auke · Shift+lohista raami · tühjal alal lohista vaadet · ratas suumib", led: "Kliki kuju sees, et lisada LED", hole: "Kliki kuju sees, et lisada veeauk", post: "Kliki kahe profiili vahele (pulk tuleb sellesse vahesse) või tähe sisse profiili kohale/alla (pulk ulatub profiilist tähe servani) · joondub tähe joone keskele või teise rea pulgaga", bar: "Kliki kõrgusele, kuhu horisontaalset profiili vaja · pikkus tuleb tähtede järgi", delete: "Kliki LED-il, augul või raamil, et see kustutada", screw: "Kliki raamile, et lisada kinnitusava (tõmbub profiili või pulga keskjoonele) · kustutamiseks kasuta kustutamise tööriista", measure: "Kliki kahte punkti, et mõõta · tõmbub kontuuri punktidele, avadele ja raamile · Shift = ainult horisontaalne/vertikaalne · Esc tühistab" }; $("hint").textContent = hints[t]; }
+function setTool(t) { if (t !== "measure" && S.meas) { S.meas = null; draw(); } if (t !== "rail" && S.railDraft) { S.railDraft = null; draw(); } S.tool = t; document.querySelectorAll("#tools button").forEach(b => b.classList.toggle("on", b.dataset.tool === t)); cv.style.cursor = t === "select" ? "default" : "crosshair"; const hints = { select: "Kliki tähel, et muuta selle LED-tüüpi · lohista LED-e ja auke · Shift+lohista raami · tühjal alal lohista vaadet · ratas suumib", led: "Kliki kuju sees, et lisada LED", hole: "Kliki kuju sees, et lisada veeauk", post: "Kliki kahe profiili vahele (pulk tuleb sellesse vahesse) või tähe sisse profiili kohale/alla (pulk ulatub profiilist tähe servani) · joondub tähe joone keskele või teise rea pulgaga", bar: "Kliki kõrgusele, kuhu horisontaalset profiili vaja · pikkus tuleb tähtede järgi", rail: "Kliki nurk-nurga haaval: iga lõik on profiil (nurgad lõigatakse gärungiga) · tõmbub teiste profiilide otstele, profiili või pulga sisse klikkides otsaga selle servale · Shift = 15° sammud · topeltklikk, parem klikk või Esc lõpetab", delete: "Kliki LED-il, augul või raamil, et see kustutada", screw: "Kliki raamile, et lisada kinnitusava (tõmbub profiili või pulga keskjoonele) · kustutamiseks kasuta kustutamise tööriista", measure: "Kliki kahte punkti, et mõõta · tõmbub kontuuri punktidele, avadele ja raamile · Shift = ainult horisontaalne/vertikaalne · Esc tühistab" }; $("hint").textContent = hints[t]; }
 document.querySelectorAll("#tools button").forEach(b => b.addEventListener("click", () => setTool(b.dataset.tool)));
 window.addEventListener("keydown", e => {
   if (document.body.classList.contains("vt-off")) return; /* tellimuste vaade on ees */
   if (e.target.matches("input,select,textarea")) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); restore(); return; }
-  if ((e.key === "Delete" || e.key === "Backspace") && S.sel) { snapshot(); if (S.sel.k === "bar") S.bars.splice(S.sel.i, 1); else if (S.sel.k === "post") { const q = S.posts[S.sel.i]; if (q) removePostAt(q, S.sel.y != null ? S.sel.y : (q.y != null ? q.y : 0)); S.multi = []; } else (S.sel.k === "led" ? S.leds : S.holes).splice(S.sel.i, 1); S.sel = null; S.manual = true; recompute(); }
+  if ((e.key === "Delete" || e.key === "Backspace") && S.sel) { snapshot(); if (S.sel.k === "bar") S.bars.splice(S.sel.i, 1); else if (S.sel.k === "rail") railDelete(S.sel.i); else if (S.sel.k === "post") { const q = S.posts[S.sel.i]; if (q) removePostAt(q, S.sel.y != null ? S.sel.y : (q.y != null ? q.y : 0)); S.multi = []; } else (S.sel.k === "led" ? S.leds : S.holes).splice(S.sel.i, 1); S.sel = null; S.manual = true; recompute(); }
   if (e.key === "j" || e.key === "J") { alignPosts(); return; }
   if (e.key === "Escape" && S.meas) { S.meas = null; draw(); return; }
-  const m = { "1": "select", "2": "led", "3": "hole", "4": "delete", "5": "post", "6": "bar", "7": "measure", "8": "screw" }; if (m[e.key]) setTool(m[e.key]);
+  if (e.key === "Escape" && S.railDraft) { railEnd(); return; }
+  const m = { "1": "select", "2": "led", "3": "hole", "4": "delete", "5": "post", "6": "bar", "7": "measure", "8": "screw", "9": "rail" }; if (m[e.key]) setTool(m[e.key]);
   if (e.key === "f") fit();
 });
 

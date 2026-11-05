@@ -6,7 +6,7 @@ function refitBar(b) { if (b.fixEnds) return; /* stretched by hand: keep its end
 function syncBarExt() { $("rowBarExt").hidden = !cfg.barExt; $("jointNote").hidden = !cfg.barExt; $("btnJointAuto").hidden = !(S.bars || []).some(b => b.jm); }
 function refreshMounts() {
   updateDotPosts(); const del = S.mountDel || [];
-  const auto = Core.mountHoles(S.letters, S.bars, cfg).concat(Core.dotHoles(S.posts || [], cfg)).filter(m => !del.some(d => Math.abs(d.x - m.x) < 1.5 && Math.abs(d.y - m.y) < 1.5));
+  const auto = Core.mountHoles(S.letters, S.bars, cfg).concat(Core.dotHoles(S.posts || [], cfg), typeof railHoles === "function" ? railHoles() : []).filter(m => !del.some(d => Math.abs(d.x - m.x) < 1.5 && Math.abs(d.y - m.y) < 1.5));
   const man = (S.mountAdd || []).map(m => ({ x: m.x, y: m.y, L: letterAt(m.x, m.y), w: 0, man: true }));
   S.mounts = auto.concat(man); snapMounts(); placeCables();
 }
@@ -15,6 +15,8 @@ function frameSnap(x, y) {
   const tol = 8 / view.s;
   for (const b of S.bars || []) if (x >= b.x0 && x <= b.x1 && Math.abs(y - b.y) <= b.h / 2 + tol) return { x: Math.round(x), y: b.y };
   for (const q of S.posts || []) for (const [lo, hi] of Core.postSegs(S.bars, q)) if (Math.abs(x - q.x) <= q.w / 2 + tol && y >= lo && y <= hi) return { x: q.x, y: Math.round(y) };
+  /* free-angle profile: onto its centre line */
+  for (const r of S.rails || []) { const g = railGeom(r), t = RV.dot(RV.sub([x, y], r.a), g.u), dn = Math.abs(RV.dot(RV.sub([x, y], r.a), g.n)); if (t >= 0 && t <= g.len && dn <= g.h + tol) { const p = RV.add(r.a, RV.mul(g.u, Math.round(t))); return { x: p[0], y: p[1] }; } }
   return null;
 }
 function mountAt(px, py) { if (!on("ly_mount")) return -1; const r = Math.max(8, cfg.mountD / 2 * view.s + 3); return (S.mounts || []).findIndex(m => Math.hypot(tx(m.x) - px, ty(m.y) - py) < r); }

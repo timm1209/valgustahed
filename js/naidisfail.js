@@ -178,7 +178,7 @@ async function saveNf(base, parts, boxes) {
 
 /* frame drawing beside the sign: its left edge one sign length to the right of the sign's right edge, same height as the frame in the sign */
 function nfFramePart(x0, y0, signW) {
-  if (!$("s_nfFrame").checked || !(S.bars || []).length) return null;
+  if (!$("s_nfFrame").checked || !hasFrame()) return null;
   const fr = frameDXF(); const fx = 2 * signW;
   const sx = fx - fr.origin[0], sy = -y0;
   const b = fr.box; return { part: { txt: fr.txt, shift: [sx, sy] }, box: [b[0] + sx, b[1] + sy, b[2] + sx, b[3] + sy] };

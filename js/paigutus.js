@@ -3,8 +3,8 @@
    Kõik failid jagavad ühist globaalset skoopi; laadimise järjekord on index.html-is. */
 
 /* ---------- placement ---------- */
-function snapshot() { undo.push(JSON.stringify({ mountAdd: S.mountAdd || [], mountDel: S.mountDel || [], leds: S.leds, holes: S.holes, bars: S.bars, posts: S.posts, types: S.letters.map(L => [L.type, L.mode]), manual: S.manual })); if (undo.length > 60) undo.shift(); }
-function restore() { const s = undo.pop(); if (!s) { toast("Rohkem pole võtta tagasi."); return; } const o = JSON.parse(s); S.mountAdd = o.mountAdd || []; S.mountDel = o.mountDel || []; S.leds = o.leds; S.holes = o.holes; S.bars = o.bars; S.posts = o.posts || []; o.types.forEach((v, i) => { if (S.letters[i]) { S.letters[i].type = v[0]; S.letters[i].mode = v[1]; } }); S.manual = o.manual; S.sel = null; recompute(); }
+function snapshot() { undo.push(JSON.stringify({ mountAdd: S.mountAdd || [], mountDel: S.mountDel || [], leds: S.leds, holes: S.holes, bars: S.bars, posts: S.posts, rails: S.rails || [], types: S.letters.map(L => [L.type, L.mode]), manual: S.manual })); if (undo.length > 60) undo.shift(); }
+function restore() { const s = undo.pop(); if (!s) { toast("Rohkem pole võtta tagasi."); return; } const o = JSON.parse(s); S.mountAdd = o.mountAdd || []; S.mountDel = o.mountDel || []; S.leds = o.leds; S.holes = o.holes; S.bars = o.bars; S.posts = o.posts || []; S.rails = o.rails || []; o.types.forEach((v, i) => { if (S.letters[i]) { S.letters[i].type = v[0]; S.letters[i].mode = v[1]; } }); S.manual = o.manual; S.sel = null; recompute(); }
 function typeOf(L) { return L.type ?? cfg.type; }
 function placeOne(li) {
   const L = S.letters[li]; const ti = typeOf(L); const t = cfg.types[ti];

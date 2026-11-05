@@ -1,4 +1,4 @@
-# Valgustähed v2.35
+# Valgustähed v2.36
 
 DXF tähekontuuridest raam, veeavad, kinnitusavad ja LED-id. Sama rakendus mis DAG Tellimuste lehe Valgustähtede vahelehel, sama kujundusega, aga eraldi ja ilma tellimuste osata.
 
@@ -17,6 +17,7 @@ GitHubis töötab see GitHub Pagesiga otse: lae kogu kaust repositooriumi ja lü
 | Kaust / fail | Sisu |
 |---|---|
 | `index.html` | Leht: paneelid, nupud ja kujundus |
+| `img/logo.png` | Ettevõtte logo päises ja sisselogimisaknas (kui fail puudub, on logo asemel punane täpp) |
 | `js/core/` | Arvutusosa (DOM-i ei kasuta) |
 | `js/core/geom.js` | Põhigeomeetria |
 | `js/core/dxf-lugemine.js` | DXF-faili lugemine |

@@ -27,7 +27,7 @@
 html,body{height:100%}
 [hidden]{display:none!important}
 body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:14px;overflow:hidden}
-.app{height:100%;display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:1fr 340px;grid-template-areas:"top top" "stage rail" "foot foot"}
+.app{height:100%;display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:340px 1fr;grid-template-areas:"top top" "rail stage" "foot foot"}
 .top{grid-area:top;display:flex;align-items:center;gap:14px;padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--line);background:var(--panel)}
 .brand{font-family:var(--f-display);font-weight:700;font-size:20px;letter-spacing:.02em;display:flex;align-items:center;gap:8px}
 .brand i{width:10px;height:10px;border-radius:50%;background:var(--led);box-shadow:0 0 0 3px color-mix(in srgb,var(--led) 25%,transparent)}
@@ -63,7 +63,7 @@ body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-siz
 .tools button.on{background:var(--ink);color:var(--panel)}
 .tools svg{width:18px;height:18px}
 .drop{position:fixed;inset:max(10px,env(safe-area-inset-top,0px)) max(10px,env(safe-area-inset-right,0px)) max(10px,env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px));z-index:60;text-align:center;padding:16px;border:2px dashed var(--led);border-radius:10px;display:grid;place-items:center;font-family:var(--f-display);font-size:24px;color:var(--led);background:color-mix(in srgb,var(--canvas) 85%,transparent);pointer-events:none}
-.rail{grid-area:rail;border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;min-height:0}
+.rail{grid-area:rail;border-right:1px solid var(--line);background:var(--panel);overflow-y:auto;min-height:0}
 .sec{border-bottom:1px solid var(--line);padding:12px 16px;display:grid;gap:10px}
 .sec>h2{margin:0;font-family:var(--f-display);font-size:15px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none}
 .sec>h2 .chev{transition:transform .15s;color:var(--muted)}
@@ -180,7 +180,7 @@ table.types input{padding:4px 5px}
 @media (max-width:820px){
   body{overflow:auto}
   .app{height:auto;grid-template-columns:1fr;grid-template-rows:auto 62vh auto auto;grid-template-areas:"top" "stage" "foot" "rail"}
-  .rail{border-left:0;overflow:visible}
+  .rail{border-right:0;overflow:visible}
   .foot{flex-wrap:wrap}
   .foot .hint{display:none}
   .layers{font-size:12px;min-width:0}
@@ -261,7 +261,7 @@ table.types input{padding:4px 5px}
         <button role="menuitem" id="miOut">Logi välja</button>
       </div>
     </div>
-    <div class="ver" id="appVer" title="Rakenduse versioon">v2.37 · 05.11.2026</div>
+    <div class="ver" id="appVer" title="Rakenduse versioon">v2.38 · 05.11.2026</div>
   </header>
   <section class="worksPage" id="dbModal" aria-labelledby="dbTitle" hidden>
     <div class="dbBox">

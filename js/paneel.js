@@ -50,23 +50,28 @@ function updateFileInfo() { $("fileInfo").textContent = S.name; }
 /* summary of the current choices, bottom of the side panel */
 function renderSummary() {
   const el = $("sumList"); if (!el) return;
-  const typeTxt = $("s_profType").selectedOptions[0] ? $("s_profType").selectedOptions[0].text : "";
-  const pre = $("s_preset").value, mm = v => String(Math.round(+v * 100) / 100).replace(".", ",");
-  const offs = `põhi ${mm(cfg.offBase)} · külg ${mm(cfg.offSide)}` + (isP3() ? "" : ` · soon ${mm(cfg.offGroove)}`);
+  const mm = v => String(Math.round(+v * 100) / 100).replace(".", ",");
   const W = S.letters.length ? Math.max(...S.letters.map(L => L.bb.x1)) - Math.min(...S.letters.map(L => L.bb.x0)) : 0, Hh = S.letters.length ? Math.max(...S.letters.map(L => L.bb.y1)) - Math.min(...S.letters.map(L => L.bb.y0)) : 0;
   const bars = S.bars || [], fx0 = bars.length ? Math.min(...bars.map(b => b.x0)) : 0, fx1 = bars.length ? Math.max(...bars.map(b => b.x1)) : 0, fy0 = bars.length ? Math.min(...bars.map(b => b.y - b.h / 2)) : 0, fy1 = bars.length ? Math.max(...bars.map(b => b.y + b.h / 2)) : 0;
   const drain = { notch: "sälk põhja servas", hole: "ümar ava", none: "ei ole" }[cfg.drainMode || "notch"];
-  /* per part when the parts differ (type / thickness from the part's Esipind and Külg) */
-  const TN = { p3: "P3", liist: "P6 liist", klaas: "P6 paks klaas" };
-  const partRows = []; const seenP = new Set();
-  S.letters.forEach((L, i) => { const g = grpOf(i), q = S.prof && S.prof[i] && S.prof[i].offs; if (!q) return; const key = (L.group || 0) + "|" + q.type; if (seenP.has(key)) return; seenP.add(key);
-    partRows.push([g.name, `${TN[q.type] || q.type} · ${sideSpec(g).text} · põhi ${mm(q.offBase)} · külg ${mm(q.offSide)}${q.type === "p3" ? "" : " · soon " + mm(q.offGroove)}`]); });
-  const distinct = new Set(partRows.map(r => r[1])).size > 1;
+  /* Profiil, Esipind, Külg and LED come from each part (Osad); with several parts each row is given per part */
+  const TN = { p3: "P3 tahavalgusega", liist: "P6 peidetud liistuga", klaas: "P6 paks klaas" };
+  const val = v => String(v || "").trim();
+  const join = (...a) => a.map(val).filter(Boolean).join(" · ") || "—";
+  const used = []; S.letters.forEach((L, i) => { const gi = L.group || 0; if (!used.some(u => u.gi === gi)) used.push({ gi, i }); });
+  if (!used.length) used.push({ gi: 0, i: -1 });
+  const per = (label, f) => { const G = S.groups || [], vs = used.map(u => [G[u.gi] || G[0] || {}, u.i]).map(([g, i]) => [g, f(g, i)]); const same = vs.every(v => v[1] === vs[0][1]);
+    return same || vs.length < 2 ? [[label, vs[0][1]]] : vs.map(([g, v]) => [`${label}: ${g.name || "osa"}`, v]); };
+  const profOf = i => (i >= 0 && S.prof && S.prof[i] && S.prof[i].offs) || { type: cfg.profType || "liist", offBase: cfg.offBase, offSide: cfg.offSide, offGroove: cfg.offGroove };
+  const yes = v => /^(jah|yes|ja|on|true|1)$/i.test(val(v)) ? "dimmerdatav" : /^(ei|no|false|0)$/i.test(val(v)) ? "ei ole dimmerdatav" : val(v) ? "dimmerdatav: " + val(v) : "";
   const rows = [
-    ...(distinct ? partRows.map(([n, v]) => ["Profiil: " + n, v]) : [["Profiil", typeTxt + (pre ? ` · ${pre}` : " · kohandatud")], ["Nihked", offs]]),
-    ["Raamiprofiil", frameProfileName() + (cfg.barExt ? ` · jätk ≤ ${mm(cfg.barSegMax)} mm` : "")],
+    ...per("Profiil", (g, i) => { const q = profOf(i); return TN[q.type] || q.type; }),
+    ...per("Esipind", g => join(g.faceMat)),
+    ...per("Külg", g => join(sideSpec(g).text + " mm", g.sideColor)),
+    ["Raam", join(frameProfileName(), S.order && S.order.frameMat, S.order && S.order.frameColor)],
+    ...per("LED", g => join(g.lightTemp, yes(g.dimmable))),
     ["Raami suurus", bars.length ? `${Math.round(fx1 - fx0)} × ${Math.round(fy1 - fy0)} mm` : "—"],
-    ...(bars.length ? [["Raami osad", `${barPieces()} profiili · ${(S.posts || []).length} pulka`]] : []),
+    ...(bars.length ? [["Raami osad", `${barPieces()} profiili · ${(S.posts || []).length} pulka` + (cfg.barExt ? ` · jätk ≤ ${mm(cfg.barSegMax)} mm` : "")]] : []),
     ["Veeavad", cfg.drainMode === "none" ? "ei ole" : `${drain} · Ø${mm(cfg.holeD)}${S.holes.length ? ` · ${S.holes.length} tk` : ""}`],
     ["Kinnitusavad", `Ø${mm(cfg.mountD)}${(S.mounts || []).length ? ` · ${S.mounts.length} tk` : ""}`],
     ...(anyP3() ? [["Kaabliavad", `Ø${mm(cfg.cableD || 8)}${S.cables && S.cables.length ? ` · ${S.cables.length} tk` : ""}`]] : []),
@@ -117,3 +122,7 @@ function renderRep() {
   $("stCounts").textContent = `${S.leds.length} LED-i · ${S.holes.length} auku · ${S.bars.length} profiili · ${(S.posts || []).length} pulka`;
   if (S.selLetter != null) showLetter();
 }
+
+/* the summary follows the order and part fields as they are typed */
+document.addEventListener("input", e => { const id = e.target && e.target.id || ""; if (/^g_|^o_frame/.test(id)) setTimeout(renderSummary, 0); });
+document.addEventListener("change", e => { const id = e.target && e.target.id || ""; if (/^g_|^o_frame/.test(id)) setTimeout(renderSummary, 0); });

@@ -76,6 +76,26 @@ function barRailCuts() {
     }
   }
 }
+/* rails attached to a bar: ends on its top/bottom edge, or on a bar end centre (corner) */
+function barRailLinks(b) {
+  const out = [];
+  for (const r of S.rails || []) for (const k of ["a", "b"]) {
+    const P = r[k], o = { r, k, P0: P.slice(), Q0: (k === "a" ? r.b : r.a).slice() };
+    const ce = [0, 1].find(e => near(P, barEndPt(b, e), 1)); if (ce != null) { out.push(Object.assign(o, { corner: ce })); continue; }
+    if (P[0] < b.x0 - 1 || P[0] > b.x1 + 1) continue;
+    for (const s of [1, -1]) if (Math.abs(P[1] - (b.y + s * b.h / 2)) < 1) { out.push(Object.assign(o, { side: s })); break; }
+  }
+  return out;
+}
+/* moved / stretched bar: attached rail ends follow; an edge end slides along its rail (the rail keeps its angle, the length changes), a corner end goes to the new bar end */
+function barRailFollow(b, links) {
+  for (const l of links || []) {
+    if (l.corner != null) { l.r[l.k] = barEndPt(b, l.corner); continue; }
+    const Q = l.k === "a" ? l.r.b : l.r.a, dir = RV.sub(l.P0, l.Q0); if (Math.abs(dir[1]) < 1e-6) continue;
+    const ye = b.y + l.side * b.h / 2, t = (ye - Q[1]) / dir[1]; if (t <= 0.05) continue; /* the bar passed the other end */
+    l.r[l.k] = [Q[0] + dir[0] * t, ye];
+  }
+}
 /* outline of a whole bar (angled ends included) */
 function barPoly(b) { const lo = b.y - b.h / 2, hi = b.y + b.h / 2; return [[Core.cutX(b.ea, lo, b.x0), lo], [Core.cutX(b.eb, lo, b.x1), lo], [Core.cutX(b.eb, hi, b.x1), hi], [Core.cutX(b.ea, hi, b.x0), hi]]; }
 /* pieces of a bar (split by joints): longer edge and the two saw angles */

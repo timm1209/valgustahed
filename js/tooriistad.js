@@ -47,7 +47,7 @@ cv.addEventListener("pointerdown", e => {
   const jt = S.tool === "select" ? jointAt(px, py) : null;
   if (jt) { S.sel = { k: "bar", i: S.bars.indexOf(jt.b) }; snapshot(); drag = { k: "joint", b: jt.b, j: jt.k, moved: false }; draw(); return; }
   const be = S.tool === "select" ? barEndAt(px, py) : null;
-  if (be) { S.sel = { k: "bar", i: S.bars.indexOf(be.b) }; snapshot(); drag = { k: "barEnd", b: be.b, end: be.end, moved: false }; draw(); return; }
+  if (be) { S.sel = { k: "bar", i: S.bars.indexOf(be.b) }; snapshot(); drag = { k: "barEnd", b: be.b, end: be.end, moved: false, links: barRailLinks(be.b) }; draw(); return; }
   const h = hit(px, py);
   if (S.tool === "delete") { const mi = mountAt(px, py); if (mi >= 0) { snapshot(); const m = S.mounts[mi]; if (m.man) S.mountAdd = (S.mountAdd || []).filter(a => Math.hypot(a.x - m.x, a.y - m.y) > 1.5); else S.mountDel = (S.mountDel || []).concat([{ x: m.x, y: m.y }]); S.manual = true; recompute(); toast("Kinnitusava kustutatud"); return; }
     if (h) { snapshot(); (h.k === "led" ? S.leds : S.holes).splice(h.i, 1); S.manual = true; S.sel = null; recompute(); return; } const pi = postAt(x, y); if (pi >= 0) { snapshot(); removePostAt(S.posts[pi], y); S.multi = []; S.manual = true; recompute(); return; } const ri = railAt(x, y); if (ri >= 0) { snapshot(); railDelete(ri); S.sel = null; S.manual = true; recompute(); return; } const bi = barAt(x, y); if (bi >= 0) { snapshot(); S.bars.splice(bi, 1); S.manual = true; recompute(); return; } drag = { k: "pan", px, py, cx: view.cx, cy: view.cy }; return; }
@@ -57,7 +57,7 @@ cv.addEventListener("pointerdown", e => {
   if (pi >= 0 && (e.ctrlKey || e.metaKey)) { const q = S.posts[pi]; S.multi = S.multi || []; const k = S.multi.indexOf(q); if (k >= 0) S.multi.splice(k, 1); else S.multi.push(q); S.sel = { k: "post", i: pi, y }; renderAlign(); draw(); return; }
   if (pi >= 0 && frameOk) { S.sel = { k: "post", i: pi, y }; S.multi = [S.posts[pi]]; renderAlign(); snapshot(); drag = { k: "post", q: S.posts[pi], dx: S.posts[pi].x - x, moved: false }; draw(); return; }
   const ri = railAt(x, y); if (ri >= 0 && frameOk) { S.sel = { k: "rail", i: ri }; draw(); drag = { k: "pan", px, py, cx: view.cx, cy: view.cy }; return; }
-  const bi = barAt(x, y); if (bi >= 0 && frameOk) { S.sel = { k: "bar", i: bi }; snapshot(); drag = { k: "bar", b: S.bars[bi], dy: S.bars[bi].y - y, moved: false }; draw(); return; }
+  const bi = barAt(x, y); if (bi >= 0 && frameOk) { S.sel = { k: "bar", i: bi }; snapshot(); drag = { k: "bar", b: S.bars[bi], dy: S.bars[bi].y - y, moved: false, links: barRailLinks(S.bars[bi]) }; draw(); return; }
   drag = { k: "pan", px, py, cx: view.cx, cy: view.cy, click: true, x, y };
 });
 cv.addEventListener("pointermove", e => {
@@ -71,7 +71,7 @@ cv.addEventListener("pointermove", e => {
   if (drag.k === "pinch" && pointers.size === 2) { const [a, b] = [...pointers.values()]; view.s = drag.s * Math.hypot(a.x - b.x, a.y - b.y) / (drag.d || 1); draw(); return; }
   if (drag.k === "pan") { const dx = e.offsetX - drag.px, dy = e.offsetY - drag.py; if (Math.abs(dx) + Math.abs(dy) > 3) drag.click = false; view.cx = drag.cx - dx / view.s; view.cy = drag.cy + dy / view.s; draw(); }
   else if (drag.k === "move") { drag.o.x = x + drag.dx; drag.o.y = y + drag.dy; drag.moved = true; draw(); }
-  else if (drag.k === "barEnd") { const b = drag.b, xr = Math.round(x); if (drag.end === 0) b.x0 = Math.min(xr, b.x1 - b.h * 2); else b.x1 = Math.max(xr, b.x0 + b.h * 2); b.fixEnds = true; updateJoints(); refreshMounts(); drag.moved = true; $("hint").textContent = `Profiili pikkus ${Math.round(b.x1 - b.x0)} mm`; draw(); }
+  else if (drag.k === "barEnd") { const b = drag.b, xr = Math.round(x); if (drag.end === 0) b.x0 = Math.min(xr, b.x1 - b.h * 2); else b.x1 = Math.max(xr, b.x0 + b.h * 2); b.fixEnds = true; barRailFollow(b, drag.links); updateJoints(); refreshMounts(); drag.moved = true; $("hint").textContent = `Profiili pikkus ${Math.round(b.x1 - b.x0)} mm`; draw(); }
   else if (drag.k === "railEnd") railDragMove(drag, x, y, e);
   else if (drag.k === "joint") {
     /* magnetic alignment (8 px on screen) with the joints of the other bars and with the posts; Alt = no snapping */
@@ -80,7 +80,7 @@ cv.addEventListener("pointermove", e => {
       for (const t of tg) { const d = Math.abs(t.x - x) * view.s; if (d < 8 && (!best || d < best.d)) best = { d, x: t.x, what: t.what }; } }
     if (best) nx = best.x; moveJoint(drag.b, drag.j, nx, !!best); if (best && Math.abs(drag.b.j.xs[drag.j] - best.x) < 1e-6) S.guide = best.x;
     refreshMounts(); drag.moved = true; $("hint").textContent = `Jätkuga osad: ${jointParts(drag.b)} mm` + (S.guide != null ? ` · joondatud teise ${best.what}` : " · Alt = ilma joondamiseta"); draw(); }
-  else if (drag.k === "bar") { drag.b.y = y + drag.dy; refitBar(drag.b); updateJoints(); refreshMounts(); drag.moved = true; draw(); }
+  else if (drag.k === "bar") { drag.b.y = y + drag.dy; refitBar(drag.b); barRailFollow(drag.b, drag.links); updateJoints(); refreshMounts(); drag.moved = true; draw(); }
   else if (drag.k === "post") {
     let nx = x + drag.dx; S.guide = null;
     /* magnetic alignment with other posts (8 px on screen) */

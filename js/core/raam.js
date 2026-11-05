@@ -217,6 +217,12 @@ function postSpan(bars) { if (bars.length < 2) return null; const lo = Math.min(
 /* the pieces of one post between consecutive bars that it touches */
 function postSegs(bars, q) {
   if (q.dot != null) return q.seg ? [q.seg] : []; /* post for a dot / accent: its own span between bar and dot */
+  if (q.fixed) { /* drawn with the frame tool: its own span, cut where a horizontal profile crosses it */
+    if (!q.seg) return []; let out = [q.seg.slice()];
+    for (const b of bars) { if (q.x + q.w / 2 <= b.x0 + 0.5 || q.x - q.w / 2 >= b.x1 - 0.5) continue; const e0 = b.y - b.h / 2, e1 = b.y + b.h / 2;
+      out = out.flatMap(([lo, hi]) => e1 <= lo || e0 >= hi ? [[lo, hi]] : [[lo, e0], [e1, hi]].filter(g => g[1] - g[0] > 1)); }
+    return out;
+  }
   const bs = bars.filter(b => q.x + q.w / 2 > b.x0 + 0.5 && q.x - q.w / 2 < b.x1 - 0.5).sort((a, b) => a.y - b.y); const out = [];
   for (let i = 1; i < bs.length; i++) { const lo = bs[i - 1].y + bs[i - 1].h / 2, hi = bs[i].y - bs[i].h / 2; if (hi > lo) out.push([lo, hi]); }
   if (q.y == null || !out.length) return out; /* a post with y sits only in the gap that contains y (nearest gap if bars moved) */
@@ -226,7 +232,7 @@ function postSegs(bars, q) {
 /* a bar end close to a post is moved flush with the post's outer edge */
 function snapBars(bars, posts) {
   for (const b of bars) for (const q of posts) {
-    if (q.dot != null) continue;
+    if (q.dot != null || q.fixed) continue;
     const l = q.x - q.w / 2, r = q.x + q.w / 2;
     if (Math.abs(l - b.x0) < q.w * 1.5 && q.x < (b.x0 + b.x1) / 2) b.x0 = l;
     if (Math.abs(r - b.x1) < q.w * 1.5 && q.x > (b.x0 + b.x1) / 2) b.x1 = r;

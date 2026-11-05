@@ -111,7 +111,9 @@ function barPieces2(b) {
 /* ---------- automatic mounting holes on the rail centre line, inside the letters ---------- */
 function railHoles() {
   const out = [], d = cfg.mountD || 6, lim = cfg.mountTwo || 160;
-  for (const r of S.rails || []) {
+  const onBar = (x, y) => (S.bars || []).some(b => x >= b.x0 - 0.5 && x <= b.x1 + 0.5 && Math.abs(Math.abs(y - b.y) - b.h / 2) < 0.6);
+  const free = (S.posts || []).filter(q => q.fixed).flatMap(q => Core.postSegs(S.bars, q).filter(g => !(onBar(q.x, g[0]) && onBar(q.x, g[1]))).map(g => ({ a: [q.x, g[0]], b: [q.x, g[1]], w: q.w })));
+  for (const r of [...(S.rails || []), ...free]) {
     const g = railGeom(r), st = 1, e = Math.max(cfg.mountEnd > 0 ? cfg.mountEnd : g.h, d / 2 + 2), iv = [];
     let cur = null;
     for (let t = 0; t <= g.len + 1e-6; t += st) {
@@ -176,7 +178,17 @@ function railSnap(x, y, from, shift, skip) {
   if (best) return { p: best.p.slice(), kind: best.kind };
   let p = [x, y];
   if (shift && from) { const v = RV.sub(p, from), L = RV.len(v), a = Math.round(Math.atan2(v[1], v[0]) / (Math.PI / 12)) * (Math.PI / 12); p = [from[0] + L * Math.cos(a), from[1] + L * Math.sin(a)]; }
-  else p = [Math.round(p[0]), Math.round(p[1])];
+  else {
+    p = [Math.round(p[0]), Math.round(p[1])];
+    /* almost horizontal / vertical (within 3°) -> exactly; Alt keeps the drawn angle */
+    if (from && !(window.event && window.event.altKey)) { const v = RV.sub(p, from), a = Math.abs(Math.atan2(v[1], v[0]) * 180 / Math.PI);
+      if (a < 3 || a > 177) p[1] = from[1]; else if (Math.abs(a - 90) < 3) p[0] = from[0]; }
+    /* onto a bar edge or centre line (height) and a post edge or centre (x) close by */
+    let by = null; for (const b of S.bars || []) for (const yy of [b.y - b.h / 2, b.y, b.y + b.h / 2]) { const dd = Math.abs(yy - p[1]); if (dd < tol && (!by || dd < by.d) && (!from || Math.abs(from[1] - p[1]) > 1e-6 || Math.abs(yy - from[1]) < 1e-6)) by = { v: yy, d: dd }; }
+    let bx = null; for (const q of S.posts || []) for (const xx of [q.x - q.w / 2, q.x, q.x + q.w / 2]) { const dd = Math.abs(xx - p[0]); if (dd < tol && (!bx || dd < bx.d) && (!from || Math.abs(from[0] - p[0]) > 1e-6 || Math.abs(xx - from[0]) < 1e-6)) bx = { v: xx, d: dd }; }
+    if (by && !(from && Math.abs(from[1] - p[1]) < 1e-6 && Math.abs(by.v - from[1]) > 1e-6)) p[1] = by.v;
+    if (bx && !(from && Math.abs(from[0] - p[0]) < 1e-6 && Math.abs(bx.v - from[0]) > 1e-6)) p[0] = bx.v;
+  }
   return { p, kind: null };
 }
 /* an end inside a bar or post is moved onto the edge that faces the other end, along the rail line */
@@ -202,10 +214,21 @@ function railClick(x, y, e) {
   const d = S.railDraft || (S.railDraft = { pts: [], cur: null, snap: null });
   const from = d.pts[d.pts.length - 1], s = railSnap(x, y, from, e.shiftKey);
   if (!from) { d.pts.push(s.p); d.cur = s.p; draw(); $("hint").textContent = "Kliki järgmisele nurgale · Shift = 15° sammud · topeltklikk, parem klikk või Esc lõpetab · klikk esimesel nurgal sulgeb ahela"; return; }
-  if (RV.len(RV.sub(s.p, from)) < cfg.profile) { railEnd(); return; } /* second click of a double click */
-  snapshot(); const r = { a: from.slice(), b: s.p.slice(), w: cfg.profile }; railFit(r); S.rails = (S.rails || []).concat([r]); S.manual = true;
-  const closed = d.pts.length > 1 && near(s.p, d.pts[0]); d.pts.push(r.b.slice()); recompute();
-  toast(`Profiil ${Math.round(railGeom(r).long)} mm`);
+  if (RV.len(RV.sub(s.p, from)) < cfg.profile) { /* second click of a double click */
+    const lone = d.pts.length === 1; railEnd();
+    if (lone) { if (S.bars.length && gapAt(x, y)) addPostAt(x, y); else addBarAt(y); } /* double click on one spot: automatic profile / post like before */
+    return;
+  }
+  snapshot(); const a = from.slice(), b = s.p.slice(), w = cfg.profile; let msg;
+  if (Math.abs(a[1] - b[1]) < 1e-6) { /* horizontal: a real horizontal profile with the drawn length */
+    const nb = { x0: Math.min(a[0], b[0]), x1: Math.max(a[0], b[0]), y: a[1], h: w, fixEnds: true }; Core.snapBars([nb], S.posts || []); S.bars.push(nb); msg = `Horisontaalne profiil ${Math.round(nb.x1 - nb.x0)} mm`;
+  } else if (Math.abs(a[0] - b[0]) < 1e-6) { /* vertical: a post with the drawn span, ends inside a bar go to its edge */
+    let lo = Math.min(a[1], b[1]), hi = Math.max(a[1], b[1]); const x = a[0];
+    for (const bb of S.bars || []) { if (x < bb.x0 - 0.5 || x > bb.x1 + 0.5) continue; const e0 = bb.y - bb.h / 2, e1 = bb.y + bb.h / 2; if (lo >= e0 - 0.5 && lo <= e1 + 0.5) lo = e1; if (hi >= e0 - 0.5 && hi <= e1 + 0.5) hi = e0; }
+    if (hi - lo < 1) { undo.pop(); toast("Pulk jääks liiga lühikeseks."); d.pts.push(b); return; }
+    const q = { x, w, seg: [lo, hi], fixed: true }; S.posts = (S.posts || []).concat([q]); msg = `Vertikaalne pulk ${Math.round(hi - lo)} mm`;
+  } else { const r = { a, b, w }; railFit(r); S.rails = (S.rails || []).concat([r]); msg = `Profiil nurga all ${Math.round(railGeom(r).long)} mm`; }
+  S.manual = true; const closed = d.pts.length > 1 && near(s.p, d.pts[0]); d.pts.push(b); recompute(); toast(msg);
   if (closed) railEnd();
 }
 function railMove(x, y, e) { const d = S.railDraft; if (!d || !d.pts.length) return; const s = railSnap(x, y, d.pts[d.pts.length - 1], e.shiftKey); d.cur = s.p; d.snap = s.kind ? s.p : null; draw(); }

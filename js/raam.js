@@ -86,7 +86,7 @@ function gapAt(x, y) {
 /* a post running through several gaps becomes one post per gap, so single pieces can be moved or removed */
 function splitPost(q) {
   const segs = Core.postSegs(S.bars, q); if (q.y != null || segs.length < 2) return [q];
-  const parts = segs.map(g => ({ x: q.x, w: q.w, y: (g[0] + g[1]) / 2 }));
+  const parts = segs.map(g => q.fixed ? { x: q.x, w: q.w, seg: g.slice(), fixed: true } : { x: q.x, w: q.w, y: (g[0] + g[1]) / 2 });
   const i = S.posts.indexOf(q); S.posts.splice(i, 1, ...parts); return parts;
 }
 function partAt(parts, y) { return parts.find(p => { const g = Core.postSegs(S.bars, p)[0]; return g && y >= g[0] - 1 && y <= g[1] + 1; }) || parts[0]; }

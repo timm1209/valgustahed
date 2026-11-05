@@ -3,6 +3,29 @@
    Kõik failid jagavad ühist globaalset skoopi; laadimise järjekord on index.html-is. */
 
 /* ---------- interaction ---------- */
+/* automatic horizontal profile at height y: length from the letters (double click with the frame tool) */
+function addBarAt(y) {
+    const h = cfg.profile; if ((S.bars || []).some(b => Math.abs(b.y - y) < h * 1.2)) { toast("Siin on profiil juba olemas."); return; }
+    const b = { x0: 0, x1: 0, y, h }; const ext = Core.barExtent(S.letters, y, h);
+    if (!ext) { toast("Sellel kõrgusel ei ole tähti, millele profiil kinnituks."); return; }
+    Object.assign(b, Core.barEnds(ext, cfg));
+    if (b.x1 - b.x0 <= h) { toast("Profiil jääks sellel kõrgusel liiga lühikeseks."); return; }
+    snapshot(); Core.snapBars([b], S.posts || []); S.bars.push(b); S.manual = true; S.sel = { k: "bar", i: S.bars.length - 1 }; recompute(); toast(`Profiil lisatud (${Math.round(b.x1 - b.x0)} mm)`); return;
+  }
+/* automatic vertical post at x, y: between two bars (centred in the letter stroke), else from the nearest bar into the letter */
+function addPostAt(x, y) {
+    if (!S.bars.length) { toast("Pulga jaoks on vaja vähemalt üht horisontaalset profiili."); return; }
+    const gap = gapAt(x, y); if (!gap) { addFreePost(x, y); return; }
+    const w = cfg.profile, gy = (gap.lo + gap.hi) / 2; let px = Core.snapPost(S.letters, S.bars, x, w, Math.max(3 * w, 60), gap.lo, gap.hi); if (px == null) return;
+    const inGap = q => Core.postSegs(S.bars, q).some(g => gy >= g[0] && gy <= g[1]);
+    if ((S.posts || []).some(q => inGap(q) && Math.abs(q.x - px) < w)) { toast("Siin on pulk juba olemas."); return; }
+    /* line it up with a post in another row when that one is close by */
+    const near = (S.posts || []).filter(q => !inGap(q) && Math.abs(q.x - px) < w * 1.5).sort((a, b) => Math.abs(a.x - px) - Math.abs(b.x - px))[0]; let aligned = false;
+    if (near) { px = near.x; aligned = true; }
+    snapshot(); const nq = { x: px, w, y: gy }; S.posts = (S.posts || []).concat([nq]); Core.snapBars(S.bars, [nq]); S.manual = true;
+    S.sel = { k: "post", i: S.posts.indexOf(nq) }; S.multi = [nq]; recompute(); toast(aligned ? "Pulk lisatud ja joondatud teise rea pulgaga" : "Pulk lisatud"); return;
+  }
+
 function letterAt(x, y) { for (let i = S.letters.length - 1; i >= 0; i--) if (Core.inLetter(S.letters[i], x, y)) return i; return -1; }
 function hit(px, py) {
   if (on("ly_led")) for (let i = S.leds.length - 1; i >= 0; i--) { const l = S.leds[i]; if (Math.hypot(tx(l.x) - px, ty(l.y) - py) < 9) return { k: "led", i }; }
@@ -20,26 +43,6 @@ cv.addEventListener("pointerdown", e => {
   if (S.tool === "rail") { if (!hasFrame() && !S.letters.length) return; railClick(x, y, e); return; }
   if (S.tool === "measure") { const p = measPoint(px, py, e.shiftKey); if (!S.meas || S.meas.done) S.meas = { a: p, b: p, done: false }; else { S.meas.b = p; S.meas.done = true; } draw(); return; }
   if (S.tool === "led") { const li = letterAt(x, y); if (li < 0) { toast("LED-i saab lisada ainult kuju sisse."); return; } snapshot(); const t = typeOf(S.letters[li]); S.leds.push({ x, y, a: 0, t, L: li }); S.manual = true; S.sel = { k: "led", i: S.leds.length - 1 }; recompute(); return; }
-  if (S.tool === "bar") {
-    const h = cfg.profile; if ((S.bars || []).some(b => Math.abs(b.y - y) < h * 1.2)) { toast("Siin on profiil juba olemas."); return; }
-    const b = { x0: 0, x1: 0, y, h }; const ext = Core.barExtent(S.letters, y, h);
-    if (!ext) { toast("Sellel kõrgusel ei ole tähti, millele profiil kinnituks."); return; }
-    Object.assign(b, Core.barEnds(ext, cfg));
-    if (b.x1 - b.x0 <= h) { toast("Profiil jääks sellel kõrgusel liiga lühikeseks."); return; }
-    snapshot(); Core.snapBars([b], S.posts || []); S.bars.push(b); S.manual = true; S.sel = { k: "bar", i: S.bars.length - 1 }; recompute(); toast(`Profiil lisatud (${Math.round(b.x1 - b.x0)} mm)`); return;
-  }
-  if (S.tool === "post") {
-    if (!S.bars.length) { toast("Pulga jaoks on vaja vähemalt üht horisontaalset profiili."); return; }
-    const gap = gapAt(x, y); if (!gap) { addFreePost(x, y); return; }
-    const w = cfg.profile, gy = (gap.lo + gap.hi) / 2; let px = Core.snapPost(S.letters, S.bars, x, w, Math.max(3 * w, 60), gap.lo, gap.hi); if (px == null) return;
-    const inGap = q => Core.postSegs(S.bars, q).some(g => gy >= g[0] && gy <= g[1]);
-    if ((S.posts || []).some(q => inGap(q) && Math.abs(q.x - px) < w)) { toast("Siin on pulk juba olemas."); return; }
-    /* line it up with a post in another row when that one is close by */
-    const near = (S.posts || []).filter(q => !inGap(q) && Math.abs(q.x - px) < w * 1.5).sort((a, b) => Math.abs(a.x - px) - Math.abs(b.x - px))[0]; let aligned = false;
-    if (near) { px = near.x; aligned = true; }
-    snapshot(); const nq = { x: px, w, y: gy }; S.posts = (S.posts || []).concat([nq]); Core.snapBars(S.bars, [nq]); S.manual = true;
-    S.sel = { k: "post", i: S.posts.indexOf(nq) }; S.multi = [nq]; recompute(); toast(aligned ? "Pulk lisatud ja joondatud teise rea pulgaga" : "Pulk lisatud"); return;
-  }
   if (S.tool === "hole") { const li = letterAt(x, y); if (li < 0) { toast("Veeauk peab olema kuju sees."); return; } snapshot(); S.holes.push({ x, y, L: li }); S.manual = true; recompute(); return; }
   if (S.tool === "screw") { const p = frameSnap(x, y); if (!p) { toast("Kinnitusava peab olema raamil (profiili või pulga peal)."); return; } snapshot(); S.mountAdd = (S.mountAdd || []).concat([p]); S.manual = true; recompute(); toast("Kinnitusava lisatud"); return; }
   const re = S.tool === "select" ? railEndAt(px, py) : null;
@@ -113,7 +116,7 @@ cv.addEventListener("dblclick", e => {
   snapshot(); if (!addJoint(b, x)) { undo.pop(); return; } S.manual = true; recompute(); toast(`Jätk lisatud: osad ${jointParts(b)} mm`);
 });
 cv.addEventListener("wheel", e => { e.preventDefault(); const x = wx(e.offsetX), y = wy(e.offsetY); const f = Math.exp(-e.deltaY * 0.0015); view.s *= f; view.cx = x - (e.offsetX - W / 2) / view.s; view.cy = y - (H / 2 - e.offsetY) / view.s; draw(); }, { passive: false });
-function setTool(t) { if (t !== "measure" && S.meas) { S.meas = null; draw(); } if (t !== "rail" && S.railDraft) { S.railDraft = null; draw(); } S.tool = t; document.querySelectorAll("#tools button").forEach(b => b.classList.toggle("on", b.dataset.tool === t)); cv.style.cursor = t === "select" ? "default" : "crosshair"; const hints = { select: "Kliki tähel, et muuta selle LED-tüüpi · lohista LED-e ja auke · Shift+lohista raami · tühjal alal lohista vaadet · ratas suumib", led: "Kliki kuju sees, et lisada LED", hole: "Kliki kuju sees, et lisada veeauk", post: "Kliki kahe profiili vahele (pulk tuleb sellesse vahesse) või tähe sisse profiili kohale/alla (pulk ulatub profiilist tähe servani) · joondub tähe joone keskele või teise rea pulgaga", bar: "Kliki kõrgusele, kuhu horisontaalset profiili vaja · pikkus tuleb tähtede järgi", rail: "Kliki nurk-nurga haaval: iga lõik on profiil (nurgad lõigatakse gärungiga) · tõmbub teiste profiilide otstele, profiili või pulga sisse klikkides otsaga selle servale · Shift = 15° sammud · topeltklikk, parem klikk või Esc lõpetab", delete: "Kliki LED-il, augul või raamil, et see kustutada", screw: "Kliki raamile, et lisada kinnitusava (tõmbub profiili või pulga keskjoonele) · kustutamiseks kasuta kustutamise tööriista", measure: "Kliki kahte punkti, et mõõta · tõmbub kontuuri punktidele, avadele ja raamile · Shift = ainult horisontaalne/vertikaalne · Esc tühistab" }; $("hint").textContent = hints[t]; }
+function setTool(t) { if (t !== "measure" && S.meas) { S.meas = null; draw(); } if (t !== "rail" && S.railDraft) { S.railDraft = null; draw(); } S.tool = t; document.querySelectorAll("#tools button").forEach(b => b.classList.toggle("on", b.dataset.tool === t)); cv.style.cursor = t === "select" ? "default" : "crosshair"; const hints = { select: "Kliki tähel, et muuta selle LED-tüüpi · lohista LED-e ja auke · Shift+lohista raami · tühjal alal lohista vaadet · ratas suumib", led: "Kliki kuju sees, et lisada LED", hole: "Kliki kuju sees, et lisada veeauk", post: "Kliki kahe profiili vahele (pulk tuleb sellesse vahesse) või tähe sisse profiili kohale/alla (pulk ulatub profiilist tähe servani) · joondub tähe joone keskele või teise rea pulgaga", bar: "Kliki kõrgusele, kuhu horisontaalset profiili vaja · pikkus tuleb tähtede järgi", rail: "Kliki nurk-nurga haaval: horisontaalne lõik = horisontaalne profiil, vertikaalne = pulk, muu = profiil nurga all (gärungiga) · alla 3° kalle sirgeks (Alt = ei) · Shift = 15° sammud · topeltklikk ühel kohal = automaatne profiil sellele kõrgusele või pulk kahe profiili vahele · topeltklikk, parem klikk või Esc lõpetab ahela", delete: "Kliki LED-il, augul või raamil, et see kustutada", screw: "Kliki raamile, et lisada kinnitusava (tõmbub profiili või pulga keskjoonele) · kustutamiseks kasuta kustutamise tööriista", measure: "Kliki kahte punkti, et mõõta · tõmbub kontuuri punktidele, avadele ja raamile · Shift = ainult horisontaalne/vertikaalne · Esc tühistab" }; $("hint").textContent = hints[t]; }
 document.querySelectorAll("#tools button").forEach(b => b.addEventListener("click", () => setTool(b.dataset.tool)));
 window.addEventListener("keydown", e => {
   if (document.body.classList.contains("vt-off")) return; /* tellimuste vaade on ees */
@@ -123,7 +126,7 @@ window.addEventListener("keydown", e => {
   if (e.key === "j" || e.key === "J") { alignPosts(); return; }
   if (e.key === "Escape" && S.meas) { S.meas = null; draw(); return; }
   if (e.key === "Escape" && S.railDraft) { railEnd(); return; }
-  const m = { "1": "select", "2": "led", "3": "hole", "4": "delete", "5": "post", "6": "bar", "7": "measure", "8": "screw", "9": "rail" }; if (m[e.key]) setTool(m[e.key]);
+  const m = { "1": "select", "2": "led", "3": "hole", "4": "delete", "5": "rail", "6": "rail", "7": "measure", "8": "screw", "9": "rail" }; if (m[e.key]) setTool(m[e.key]);
   if (e.key === "f") fit();
 });
 

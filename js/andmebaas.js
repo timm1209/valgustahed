@@ -41,6 +41,7 @@ function dbName() { return (S.order && (S.order.title || "").trim()) || (S.name 
 function dbUI() {
   if (!$("btnDbSave")) return;
   $("btnDbSave").disabled = !S.letters.length || DB.busy || !dbReady();
+  if (typeof oigus === "function") { $("btnDbSave").hidden = !oigus("t_tood_salvesta"); $("btnDbOpen").hidden = !oigus("t_tood_vaata"); }
   $("btnDbOpen").disabled = !dbReady();
   $("dbStat").textContent = S.dbId ? `Andmebaasis: ${S.dbName || dbName()}${S.dbSaved ? " · salvestatud " + dbFmtTime(S.dbSaved) : ""}` : (S.letters.length && dbReady() ? "See töö pole veel andmebaasis." : "");
 }
@@ -111,7 +112,7 @@ function dbRender() {
     <td class="tm">${dbWho(r.loonud_nimi, r.loonud)}<small>${esc(dbFmtTime(r.loodud))}</small></td>
     <td class="tm">${esc(dbFmtTime(r.muudetud))}<small>${dbWho(r.muutnud_nimi, r.muutnud)}</small></td>
     <td class="act"><button class="btn sm" data-open="${esc(r.id)}">Ava</button></td>
-    <td class="act"><button class="btn ghost sm del${DB.armDel === r.id ? " arm" : ""}" data-del="${esc(r.id)}" title="Kustuta andmebaasist">${DB.armDel === r.id ? "Kinnita" : "Kustuta"}</button></td></tr>`).join("");
+    <td class="act">${typeof oigus === "function" && !oigus("t_tood_kustuta") ? "" : `<button class="btn ghost sm del${DB.armDel === r.id ? " arm" : ""}" data-del="${esc(r.id)}" title="Kustuta andmebaasist">${DB.armDel === r.id ? "Kinnita" : "Kustuta"}</button>`}</td></tr>`).join("");
 }
 
 /* ---------- käivitus ---------- */

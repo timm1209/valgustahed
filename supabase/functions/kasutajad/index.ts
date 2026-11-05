@@ -33,7 +33,8 @@ Deno.serve(async (req) => {
     if (!me || !me.aktiivne || me.roll !== "admin") return json({ error: "Selleks on vaja admini õigusi." }, 403);
 
     const b = await req.json().catch(() => ({}));
-    const roll = b.roll === "admin" ? "admin" : "kasutaja";
+    const ROLLID = ["admin", "kasutaja", "muuk"];
+    const roll = ROLLID.includes(b.roll) ? b.roll : "kasutaja";
     switch (b.action) {
       case "loo": {
         const email = String(b.email || "").trim().toLowerCase(), nimi = String(b.nimi || "").trim(), parool = String(b.parool || "");
@@ -46,10 +47,10 @@ Deno.serve(async (req) => {
       }
       case "muuda": {
         const id = String(b.id || ""); if (!id) return json({ error: "Kasutaja puudub." }, 400);
-        if (id === who.user.id && (b.roll === "kasutaja" || b.aktiivne === false)) return json({ error: "Enda admini õigusi ega kontot ei saa siit ära võtta." }, 400);
+        if (id === who.user.id && ((b.roll && b.roll !== "admin") || b.aktiivne === false)) return json({ error: "Enda admini õigusi ega kontot ei saa siit ära võtta." }, 400);
         const patch: Record<string, unknown> = {};
         if (typeof b.nimi === "string") patch.nimi = b.nimi.trim();
-        if (b.roll === "admin" || b.roll === "kasutaja") patch.roll = b.roll;
+        if (ROLLID.includes(b.roll)) patch.roll = b.roll;
         if (typeof b.aktiivne === "boolean") {
           patch.aktiivne = b.aktiivne;
           const { error } = await admin.auth.admin.updateUserById(id, { ban_duration: b.aktiivne ? "none" : "876000h" });

@@ -1,4 +1,4 @@
-# Valgustähed v2.34
+# Valgustähed v2.35
 
 DXF tähekontuuridest raam, veeavad, kinnitusavad ja LED-id. Sama rakendus mis DAG Tellimuste lehe Valgustähtede vahelehel, sama kujundusega, aga eraldi ja ilma tellimuste osata.
 
@@ -44,6 +44,7 @@ GitHubis töötab see GitHub Pagesiga otse: lae kogu kaust repositooriumi ja lü
 | `js/kliendi-pdf.js` | Kliendi PDF |
 | `js/vaade3d.js` | 3D-vaade |
 | `js/andmebaas.js` | Supabase'i ühendus ja tööd: salvesta/uuenda, nimekiri otsinguga, ava, kustuta |
+| `js/oigused.js` | Gruppide (Kasutaja, Müük) õigused: mida näeb ja teha tohib; admini vaheleht „Õigused“ |
 | `js/kasutajad.js` | Sisselogimisleht, kasutajamenüü, parooli muutmine/taastamine, admini paneel |
 | `supabase/functions/kasutajad/index.ts` | Serverifunktsioon kasutajate loomiseks, muutmiseks ja kustutamiseks (ainult admin) |
 | `js/andmebaas-config.js` | Supabase'i projekti aadress ja anon võti (kõigile arvutitele ühine) |

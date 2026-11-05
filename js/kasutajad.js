@@ -4,7 +4,7 @@
    Andmete tegelik kaitse on andmebaasi reeglites (supabase.sql); see leht ainult ei näita rakendust ilma sisselogimiseta.
    Kõik failid jagavad ühist globaalset skoopi; laadimise järjekord on index.html-is. */
 const AU = { recovery: false, users: [], editId: null, armDel: null };
-const ROLLI_NIMI = { admin: "Admin", kasutaja: "Kasutaja" };
+const ROLLI_NIMI = { admin: "Admin", kasutaja: "Kasutaja", muuk: "Müük" };
 
 /* ---------- värav ---------- */
 function gateShow(view, msg, bad) {
@@ -55,8 +55,9 @@ function auUI() {
   $("btnUser").hidden = !me; $("userName").textContent = me ? (me.nimi || me.email) : "";
   $("userRole").textContent = me ? ROLLI_NIMI[me.roll] || "" : "";
   $("miAdmin").hidden = !(me && me.roll === "admin");
-  $("btnDb").hidden = !me;
+  $("btnDb").hidden = !me || (typeof oigus === "function" && !oigus("t_tood_vaata"));
   if (me && typeof autoDrafter === "function") autoDrafter();
+  const key = me ? me.id + "|" + me.roll : ""; if (key !== AU.permKey) { AU.permKey = key; if (typeof oigLoad === "function") oigLoad(); }
   if (typeof dbUI === "function") dbUI();
 }
 function menuToggle(on) { const m = $("userMenu"); m.hidden = on === undefined ? !m.hidden : !on; $("btnUser").setAttribute("aria-expanded", String(!m.hidden)); }
@@ -108,7 +109,7 @@ async function admLoad() {
   if (error) { admMsg(dbErr(error), true); return; }
   AU.users = data || []; admRender();
 }
-function admOpen() { if (!(DB.me && DB.me.roll === "admin")) return; menuToggle(false); $("admModal").hidden = false; AU.editId = null; AU.armDel = null; admMsg(""); $("admNewForm").reset(); admLoad(); }
+function admOpen() { if (!(DB.me && DB.me.roll === "admin")) return; menuToggle(false); $("admModal").hidden = false; if (typeof oigUsersTab === "function") oigUsersTab(); AU.editId = null; AU.armDel = null; admMsg(""); $("admNewForm").reset(); admLoad(); }
 function admRender() {
   const meId = DB.me && DB.me.id;
   $("admCount").textContent = AU.users.length === 1 ? "1 kasutaja" : AU.users.length + " kasutajat";
@@ -116,7 +117,7 @@ function admRender() {
     const self = u.id === meId, ed = AU.editId === u.id;
     return `<tr data-id="${esc(u.id)}" class="${u.aktiivne ? "" : "off"}">
       <td class="nm">${ed ? `<input type="text" class="admNm" value="${esc(u.nimi)}" aria-label="Nimi">` : `<b>${esc(u.nimi || "—")}</b>`}<small>${esc(u.email)}${self ? " · sina" : ""}</small></td>
-      <td><select class="admRoll" ${self ? "disabled title=\"Enda rolli ei saa muuta\"" : ""} aria-label="Roll"><option value="kasutaja"${u.roll === "kasutaja" ? " selected" : ""}>Kasutaja</option><option value="admin"${u.roll === "admin" ? " selected" : ""}>Admin</option></select></td>
+      <td><select class="admRoll" ${self ? "disabled title=\"Enda rolli ei saa muuta\"" : ""} aria-label="Roll"><option value="kasutaja"${u.roll === "kasutaja" ? " selected" : ""}>Kasutaja</option><option value="muuk"${u.roll === "muuk" ? " selected" : ""}>Müük</option><option value="admin"${u.roll === "admin" ? " selected" : ""}>Admin</option></select></td>
       <td>${u.aktiivne ? `<span class="pill ok">Aktiivne</span>` : `<span class="pill bad">Blokeeritud</span>`}</td>
       <td class="act">${ed ? `<button class="btn sm" data-a="savename">Salvesta</button>` : `<button class="btn ghost sm" data-a="name">Muuda nime</button>`}</td>
       <td class="act"><button class="btn ghost sm" data-a="pw">Uus parool</button></td>
